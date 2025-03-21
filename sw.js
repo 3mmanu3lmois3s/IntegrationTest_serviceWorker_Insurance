@@ -46,6 +46,7 @@ async function testHttpMethods() {
     }
 }
 //corregido EM
+/*
 self.addEventListener('fetch', function(event) {
     const requestUrl = new URL(event.request.url);
 
@@ -169,6 +170,74 @@ self.addEventListener('fetch', function(event) {
         event.respondWith(fetch(event.request));
     }
 });
+*/
+
+self.addEventListener('fetch', function(event) {
+    const requestUrl = new URL(event.request.url);
+
+    if (requestUrl.pathname.startsWith(basePath)) {
+        const relativePath = requestUrl.pathname.substring(basePath.length);
+        const method = event.request.method;
+
+        // Handle API requests.  The routing logic goes HERE.
+        if (relativePath.startsWith('api/')) {
+            const apiPath = relativePath.substring(4); // Remove 'api/'
+
+            if (apiPath === 'data' && method === 'GET') {
+                event.respondWith(
+                    new Response(JSON.stringify({ message: 'Hello from Service Worker! (data)' }), {
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                );
+            } else if (apiPath === 'users' && method === 'GET') {
+                event.respondWith(
+                    new Response(JSON.stringify([{ id: 1, name: 'John Doe' }, { id: 2, name: 'Jane Doe' }]), {
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                );
+            } else if (apiPath.startsWith('user/') && method === 'GET') {
+                const userId = apiPath.substring('user/'.length);
+                event.respondWith(
+                    new Response(JSON.stringify({ id: userId, name: 'User ' + userId }), {
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                );
+            } else if (apiPath === 'customers' && method === 'POST') {
+                // Correctly handles /api/customers POST
+                event.respondWith(handleCreateCustomer(event.request));
+            } else if (apiPath === 'customers' && method === 'GET') {
+              // Handle GET for all customers
+              event.respondWith(handleGetAllCustomers());
+            } else if (apiPath.startsWith('customers/') && method === 'GET') {
+                // Handle GET for a specific customer: /api/customers/:customerId
+                const customerId = apiPath.split('/')[1];  // Correctly extract customerId
+                event.respondWith(handleGetCustomer(customerId));
+            } else if (apiPath === 'messages' && method === 'POST') {
+                event.respondWith(handlePostMessage(event.request));
+            }  else if (apiPath === 'messages' && method === 'GET') {
+               event.respondWith(handleGetAllMessages());
+            } else if (apiPath.startsWith('search') && method === 'GET') {
+                const urlParams = new URLSearchParams(requestUrl.search);
+                const terms = urlParams.get('terms');
+                event.respondWith(handleSearchMessages(terms));
+            }else {
+                // Request for an API endpoint that's not handled
+                console.log('Service Worker: Passing request to network (API endpoint not found):', event.request.url);
+                event.respondWith(fetch(event.request));  // Pass to network
+            }
+        } else {
+            // Request for a non-API resource (e.g., HTML, CSS, JS files)
+            console.log('Service Worker: Passing request to network (Non-API request):', event.request.url);
+            event.respondWith(fetch(event.request));
+        }
+
+    } else {
+        // Request is not within the base path - let the network handle it
+        console.log('Service Worker: Passing request to network (not in base path):', event.request.url);
+        event.respondWith(fetch(event.request));
+    }
+});
+
 
 // NEW (INDEXEDDB) VERSION - USE THIS
 
