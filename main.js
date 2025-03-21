@@ -1,6 +1,6 @@
 // main.js
 let newWorker;
-const basePath = '/ServiceWorkerJS';
+const basePath = '/IntegrationTest_serviceWorker_Insurance';
 
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register(basePath + '/sw.js')

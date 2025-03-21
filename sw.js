@@ -1,24 +1,7 @@
 // sw.js
 /*jshint esversion: 6 */
 /*jshint worker: true */
-const basePath = '/ServiceWorkerJS/';
-let nextCustomerId = 1;
-let nextQuoteId = 1;
-let nextPolicyId = 1;
-let nextClaimId = 1;
-
-// In-memory data storage (for demo purposes)
-const db = {
-    customers: {},
-    products: [
-        { productId: 'home-insurance', name: 'Home Insurance', description: 'Covers your home and belongings.' },
-        { productId: 'auto-insurance', name: 'Auto Insurance', description: 'Covers your vehicle.' },
-        { productId: 'life-insurance', name: 'Life Insurance', description: 'Provides financial protection for your loved ones.' }
-    ],
-    quotes: {},
-    policies: {},
-    claims: {}
-};
+const basePath = '/IntegrationTest_serviceWorker_Insurance/'; // Corrected base path
 
 self.addEventListener('install', function(event) {
     console.log('Service Worker installing.');
@@ -28,7 +11,7 @@ self.addEventListener('install', function(event) {
 self.addEventListener('activate', function(event) {
     console.log('Service Worker activating.');
     event.waitUntil(clients.claim().then(() => {
-        // Run the self-tests AFTER claiming clients
+        openDB(); // Initialize IndexedDB *before* tests
         testHttpMethods();
     }));
 });
@@ -59,7 +42,7 @@ async function testHttpMethods() {
         }
     }
 }
-
+//corregido EM
 self.addEventListener('fetch', function(event) {
     const requestUrl = new URL(event.request.url);
     console.log('Service Worker: Fetch event for', requestUrl.href);
@@ -70,87 +53,188 @@ self.addEventListener('fetch', function(event) {
         const method = event.request.method;
         console.log('Service Worker: method is:', method);
 
-        const [route, customerId, quotesOrPolicies, quoteOrPolicyId, action] = relativePath.split('/').filter(part => part !== '');
 
-        try {
+        // Handle API requests
+        //if (relativePath.startsWith('api/')) {  <-- REMOVE THIS LINE
+            //const apiPath = relativePath.substring(4); // Remove 'api/'  <-- REMOVE THIS LINE
+
             // Test routes (handle them BEFORE the other routes)
             if (relativePath.startsWith('test/')) {
                 if (relativePath === 'test/get' && method === 'GET') {
                     event.respondWith(new Response(JSON.stringify({ message: 'GET test successful' }), { headers: { 'Content-Type': 'application/json' } }));
+                    return;
                 } else if (relativePath === 'test/post' && method === 'POST') {
                     event.respondWith(new Response(JSON.stringify({ message: 'POST test successful' }), { headers: { 'Content-Type': 'application/json' } }));
+                    return;
                 } else if (relativePath === 'test/put' && method === 'PUT') {
                     event.respondWith(new Response(JSON.stringify({ message: 'PUT test successful' }), { headers: { 'Content-Type': 'application/json' } }));
+                    return;
                 } else if (relativePath === 'test/delete' && method === 'DELETE') {
                     event.respondWith(new Response(JSON.stringify({ message: 'DELETE test successful' }), { headers: { 'Content-Type': 'application/json' } }));
+                    return;
                 }
-                return; // IMPORTANT: Return after handling ANY test route
             }
-
-            // Top-level routes and nested routes
-            if (relativePath === 'products' && method === 'GET') {
-                 event.respondWith(handleGetProducts());
-            } else if (route === 'customers') {
-                // Handle /customers routes
-                if (!customerId && method === 'POST') { // Create Customer: /customers
-                    console.log("Entra en customers post");
-                    event.respondWith(handleCreateCustomer(event.request));
-                } else if (customerId && quotesOrPolicies === 'quotes') { // Handle /customers/:customerId/quotes
-                    if (!quoteOrPolicyId && method === 'POST') {  // Start Quote: /customers/:customerId/quotes
-                        console.log("Entra en quotes post");
-                        event.respondWith(handleStartQuote(customerId, event.request));
-                    } else if (quoteOrPolicyId && !action && method === 'PUT') { // Update Quote: /customers/:customerId/quotes/:quoteId
-                        console.log("Entra en quotes put");
-                        event.respondWith(handleUpdateQuote(customerId, quoteOrPolicyId, event.request));
-                    } else if (quoteOrPolicyId && action === 'calculate' && method === 'POST') { // Calculate: /customers/:customerId/quotes/:quoteId/calculate
-                        event.respondWith(handleCalculatePremium(customerId, quoteOrPolicyId));
-                    } else if (quoteOrPolicyId && action === 'accept' && method === 'POST') { // Accept: /customers/:customerId/quotes/:quoteId/accept
-                        event.respondWith(handleAcceptQuote(customerId, quoteOrPolicyId, event.request));
-                    }
-                } else if (customerId && quotesOrPolicies === 'policies') { //Handle /customers/:customerId/policies
-                     if (quoteOrPolicyId && !action && method === 'GET') {  // Get Policy: /customers/:customerId/policies/:policyId
-                        event.respondWith(handleGetPolicy(customerId, quoteOrPolicyId));
-                    }else if (quoteOrPolicyId && action === 'renewal' && method === 'GET') { // Renewal Info: /customers/:customerId/policies/:policyId/renewal
-                        event.respondWith(handleGetRenewalInfo(customerId, quoteOrPolicyId));
-                    } else if (quoteOrPolicyId && action === 'renew' && method === 'POST') { // Renew: /customers/:customerId/policies/:policyId/renew
-                        event.respondWith(handleRenewPolicy(customerId, quoteOrPolicyId, event.request));
-                    }
-                } else if (customerId && quotesOrPolicies === 'claims') { // Handle /customers/:customerId/claims
-                    if (!quoteOrPolicyId && method === 'POST') {  // File Claim: /customers/:customerId/claims
-                       console.log("Entra en file claim");
-                      event.respondWith(handleFileClaim(customerId, event.request));
-                    } else if (quoteOrPolicyId && method === 'GET') { // Get Claim: /customers/:customerId/claims/:claimId
-                      event.respondWith(handleGetClaim(customerId, quoteOrPolicyId));
-                    }
-                } else {
-                  console.log('Service Worker: Passing request to network (Unhandled customer route):', event.request.url);
-                  event.respondWith(fetch(event.request));
-                }
+            // --- Insurance API Routes ---
+            //Now you can add the 'api/' prefix
+            else if (relativePath.startsWith('api/')) {
+                const apiPath = relativePath.substring(4); // Remove 'api/'
+                if (apiPath === 'data' && method === 'GET') {
+                event.respondWith(
+                    new Response(JSON.stringify({ message: 'Hello from Service Worker! (data)' }), {
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                );
+            } else if (apiPath === 'users' && method === 'GET') {
+                event.respondWith(
+                    new Response(JSON.stringify([{ id: 1, name: 'John Doe' }, { id: 2, name: 'Jane Doe' }]), {
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                );
+            } else if (apiPath.startsWith('user/') && method === 'GET') {
+                const userId = apiPath.substring('user/'.length);
+                event.respondWith(
+                    new Response(JSON.stringify({ id: userId, name: 'User ' + userId }), {
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                );
+            } else if (apiPath === 'customers' && method === 'POST') {
+                // Correctly handles /api/customers POST
+                console.log("Service Worker: Handling POST /api/customers");
+                event.respondWith(handleCreateCustomer(event.request));
+            } else if (apiPath === 'customers' && method === 'GET') {
+                // Handle GET for all customers
+                event.respondWith(handleGetAllCustomers());
+            } else if (apiPath.startsWith('customers/') && method === 'GET') {
+                // Handle GET for a specific customer: /api/customers/:customerId
+                const customerId = apiPath.split('/')[1];  // Correctly extract customerId
+                 console.log("Service Worker: Handling GET /api/customers/" + customerId);
+                event.respondWith(handleGetCustomer(customerId));
+            }else if (apiPath === 'products' && method === 'GET') {
+                event.respondWith(handleGetProducts());
+            }else if (apiPath.startsWith('customers/') && method === 'POST' && apiPath.split('/')[2] === 'quotes') {
+                const customerId = apiPath.split('/')[1];
+                event.respondWith(handleStartQuote(customerId, event.request));
+            } else if (apiPath.startsWith('customers/') && method === 'PUT' && apiPath.split('/')[3] !== 'calculate' && apiPath.split('/')[3] !== 'accept' && apiPath.split('/')[2] === 'quotes' ) {
+                const customerId = apiPath.split('/')[1];
+                const quoteId = apiPath.split('/')[3];
+                console.log("customerId:", customerId, "quoteId:", quoteId);
+                event.respondWith(handleUpdateQuote(customerId, quoteId, event.request));
+            }else if(apiPath.startsWith('customers/') && method === 'POST' && apiPath.split('/')[3] === 'calculate'){
+                const customerId = apiPath.split('/')[1];
+                const quoteId = apiPath.split('/')[3];
+                event.respondWith(handleCalculatePremium(customerId,quoteId));
+            } else if (apiPath.startsWith('customers/') && method === 'POST' && apiPath.split('/')[3] === 'accept') {
+                const customerId = apiPath.split('/')[1];
+                const quoteId = apiPath.split('/')[3];
+                event.respondWith(handleAcceptQuote(customerId,quoteId, event.request));
+            }else if(apiPath.startsWith('customers/') && method === 'GET' && apiPath.split('/')[2] === 'policies'){
+                const customerId = apiPath.split('/')[1];
+                const policyId = apiPath.split('/')[3];
+                event.respondWith(handleGetPolicy(customerId,policyId));
+            }else if (apiPath.startsWith('customers/') && method === 'POST' && apiPath.split('/')[2] === 'claims') {
+                const customerId = apiPath.split('/')[1];
+                event.respondWith(handleFileClaim(customerId, event.request));
+            } else if(apiPath.startsWith('customers/') && method === 'GET' && apiPath.split('/')[2] === 'claims'){
+                const customerId = apiPath.split('/')[1];
+                const claimId = apiPath.split('/')[3];
+                event.respondWith(handleGetClaim(customerId, claimId));
+            }else if(apiPath.startsWith('customers/') && method === 'GET' && apiPath.split('/')[3] === 'renewal'){
+                const customerId = apiPath.split('/')[1];
+                const policyId = apiPath.split('/')[3];
+                event.respondWith(handleGetRenewalInfo(customerId,policyId));
+            }else if(apiPath.startsWith('customers/') && method === 'POST' && apiPath.split('/')[3] === 'renew'){
+                const customerId = apiPath.split('/')[1];
+                const policyId = apiPath.split('/')[3];
+                event.respondWith(handleRenewPolicy(customerId,policyId, event.request));
+            }
+            else if (apiPath === 'messages' && method === 'POST') {
+              event.respondWith(handlePostMessage(event.request));
+            }
+            //added get all messages
+             else if (apiPath === 'messages' && method === 'GET'){
+                event.respondWith(handleGetAllMessages());
+            }
+             else if (apiPath.startsWith('search') && method === 'GET') {
+                const urlParams = new URLSearchParams(requestUrl.search);
+                const terms = urlParams.get('terms');
+                event.respondWith(handleSearchMessages(terms));
             } else {
-                console.log('Service Worker: Passing request to network (under base path, but not API):', event.request.url);
-                event.respondWith(fetch(event.request));
+                // Request for an API endpoint that's not handled
+                console.log('Service Worker: Passing request to network (API endpoint not found):', event.request.url);
+                event.respondWith(fetch(event.request));  // Pass to network
             }
-        } catch (error) {
-            console.error("SW Error:", error);
-            event.respondWith(new Response(JSON.stringify({ error: error.message }), {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' }
-            }));
+        } else {
+            // Request for a non-API resource (e.g., HTML, CSS, JS files)
+            console.log('Service Worker: Passing request to network (Non-API request):', event.request.url);
+            event.respondWith(fetch(event.request)); // Pass to network
         }
+
     } else {
+        // Request is not within the base path - let the network handle it
         console.log('Service Worker: Passing request to network (not in base path):', event.request.url);
         event.respondWith(fetch(event.request));
     }
 });
 
-// --- Helper Functions (sw.js) ---
+// NEW (INDEXEDDB) VERSION - USE THIS
+
 async function handleCreateCustomer(request) {
-    const body = await request.json();
-    const customerId = `cust${nextCustomerId++}`; // Simple ID generation
-    db.customers[customerId] = { ...body, customerId }; // Store customer
-    return new Response(JSON.stringify({ customerId }), {
-        headers: { 'Content-Type': 'application/json' }
+    try {
+        const body = await request.json();
+        console.log('Service Worker: Received customer data:', body);
+
+        const customerId = await addCustomerToDB(body); // Use the IndexedDB helper
+
+        return new Response(JSON.stringify({ customerId: customerId }), {
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+    } catch (error) {
+        console.error('Service Worker: Error in handleCreateCustomer:', error);
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+}
+async function addCustomerToDB(customerData) {
+    if (!db) {
+        await openDB();
+    }
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([customerStoreName], 'readwrite');
+        const store = transaction.objectStore(customerStoreName);
+        const customerId = `cust-${Date.now()}`;
+        const customer = { ...customerData, id: customerId };
+        const request = store.add(customer);
+
+        request.onsuccess = () => {
+            console.log('Customer added to IndexedDB:', customer);
+            resolve(customerId);
+        };
+          
+
+        request.onerror = (event) => {
+            console.error('Error adding customer to IndexedDB:', event.target.error);
+            reject(event.target.error);
+        };
     });
+
+}
+
+async function handleGetAllCustomers() {
+    try {
+        const customers = await getAllCustomersFromDB(); // Use the IndexedDB helper
+        return new Response(JSON.stringify(customers), {
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        console.error('Service Worker: Error in handleGetAllCustomers:', error);
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
 }
 
 async function handleGetProducts(){
