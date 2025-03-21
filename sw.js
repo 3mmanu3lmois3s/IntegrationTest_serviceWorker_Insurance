@@ -8,12 +8,15 @@ self.addEventListener('install', function(event) {
     event.waitUntil(self.skipWaiting());
 });
 
-self.addEventListener('activate', function(event) {
+self.addEventListener('activate', async function(event) { // Add async
     console.log('Service Worker activating.');
-    event.waitUntil(clients.claim().then(() => {
-        openDB(); // Initialize IndexedDB *before* tests
-        testHttpMethods();
-    }));
+    event.waitUntil(
+        (async () => { // Wrap in an async IIFE
+            await openDB(); // AWAIT openDB()
+            await clients.claim(); // Now safe to claim clients
+            testHttpMethods(); // And run tests (though fetch listener isn't set up yet, so these will likely still fail).
+        })()
+    );
 });
 
 async function testHttpMethods() {
@@ -45,132 +48,123 @@ async function testHttpMethods() {
 //corregido EM
 self.addEventListener('fetch', function(event) {
     const requestUrl = new URL(event.request.url);
-    console.log('Service Worker: Fetch event for', requestUrl.href);
 
     if (requestUrl.pathname.startsWith(basePath)) {
         const relativePath = requestUrl.pathname.substring(basePath.length);
-        console.log('Service Worker: relativePath is:', relativePath);
         const method = event.request.method;
-        console.log('Service Worker: method is:', method);
 
+        // Check if the request is for an API endpoint
+        if (relativePath.startsWith('api/')) {
+            const apiPath = relativePath.substring(4); // Remove 'api/'
 
-        // Handle API requests
-        //if (relativePath.startsWith('api/')) {  <-- REMOVE THIS LINE
-            //const apiPath = relativePath.substring(4); // Remove 'api/'  <-- REMOVE THIS LINE
+            switch (apiPath) {
+                case 'data':
+                    if (method === 'GET') {
+                        event.respondWith(
+                            new Response(JSON.stringify({ message: 'Hello from Service Worker! (data)' }), {
+                                headers: { 'Content-Type': 'application/json' }
+                            })
+                        );
+                    } else if (method === 'POST') { // Add this!
+                        event.respondWith(
+                            new Response(JSON.stringify({ message: 'POST request to /api/data handled' }), {
+                                headers: { 'Content-Type': 'application/json' }
+                            })
+                        );
+                    }
+                    break; // VERY IMPORTANT
+                case 'users':
+                    if (method === 'GET') {
+                        event.respondWith(
+                            new Response(JSON.stringify([{ id: 1, name: 'John Doe' }, { id: 2, name: 'Jane Doe' }]), {
+                                headers: { 'Content-Type': 'application/json' }
+                            })
+                        );
+                    }
+                    break;
+                case 'customers':
+                     if (method === 'POST') {
+                        console.log("Service Worker: Handling POST /api/customers");
+                        event.respondWith(handleCreateCustomer(event.request));
+                    } else if (method === 'GET'){
+                        event.respondWith(handleGetAllCustomers());
+                    }
+                    break;
+                case (apiPath.match(/^customers\/\w+$/)?.input): // Matches "customers/<customerId>"
+                       if(method === 'GET'){
+                            const customerId = apiPath.split('/')[1];
+                            console.log("Service Worker: Handling GET /api/customers/" + customerId);
+                            event.respondWith(handleGetCustomer(customerId));
+                       }
+                       break;
+                case 'messages':
+                    if (method === 'POST') {
+                        event.respondWith(handlePostMessage(event.request));
+                    } else if (method === 'GET') {
+                        event.respondWith(handleGetAllMessages());
+                    }
+                    break;
 
-            // Test routes (handle them BEFORE the other routes)
-            if (relativePath.startsWith('test/')) {
-                if (relativePath === 'test/get' && method === 'GET') {
-                    event.respondWith(new Response(JSON.stringify({ message: 'GET test successful' }), { headers: { 'Content-Type': 'application/json' } }));
-                    return;
-                } else if (relativePath === 'test/post' && method === 'POST') {
-                    event.respondWith(new Response(JSON.stringify({ message: 'POST test successful' }), { headers: { 'Content-Type': 'application/json' } }));
-                    return;
-                } else if (relativePath === 'test/put' && method === 'PUT') {
-                    event.respondWith(new Response(JSON.stringify({ message: 'PUT test successful' }), { headers: { 'Content-Type': 'application/json' } }));
-                    return;
-                } else if (relativePath === 'test/delete' && method === 'DELETE') {
-                    event.respondWith(new Response(JSON.stringify({ message: 'DELETE test successful' }), { headers: { 'Content-Type': 'application/json' } }));
-                    return;
-                }
-            }
-            // --- Insurance API Routes ---
-            //Now you can add the 'api/' prefix
-            else if (relativePath.startsWith('api/')) {
-                const apiPath = relativePath.substring(4); // Remove 'api/'
-                if (apiPath === 'data' && method === 'GET') {
-                event.respondWith(
-                    new Response(JSON.stringify({ message: 'Hello from Service Worker! (data)' }), {
-                        headers: { 'Content-Type': 'application/json' }
-                    })
-                );
-            } else if (apiPath === 'users' && method === 'GET') {
-                event.respondWith(
-                    new Response(JSON.stringify([{ id: 1, name: 'John Doe' }, { id: 2, name: 'Jane Doe' }]), {
-                        headers: { 'Content-Type': 'application/json' }
-                    })
-                );
-            } else if (apiPath.startsWith('user/') && method === 'GET') {
-                const userId = apiPath.substring('user/'.length);
-                event.respondWith(
-                    new Response(JSON.stringify({ id: userId, name: 'User ' + userId }), {
-                        headers: { 'Content-Type': 'application/json' }
-                    })
-                );
-            } else if (apiPath === 'customers' && method === 'POST') {
-                // Correctly handles /api/customers POST
-                console.log("Service Worker: Handling POST /api/customers");
-                event.respondWith(handleCreateCustomer(event.request));
-            } else if (apiPath === 'customers' && method === 'GET') {
-                // Handle GET for all customers
-                event.respondWith(handleGetAllCustomers());
-            } else if (apiPath.startsWith('customers/') && method === 'GET') {
-                // Handle GET for a specific customer: /api/customers/:customerId
-                const customerId = apiPath.split('/')[1];  // Correctly extract customerId
-                 console.log("Service Worker: Handling GET /api/customers/" + customerId);
-                event.respondWith(handleGetCustomer(customerId));
-            }else if (apiPath === 'products' && method === 'GET') {
-                event.respondWith(handleGetProducts());
-            }else if (apiPath.startsWith('customers/') && method === 'POST' && apiPath.split('/')[2] === 'quotes') {
-                const customerId = apiPath.split('/')[1];
-                event.respondWith(handleStartQuote(customerId, event.request));
-            } else if (apiPath.startsWith('customers/') && method === 'PUT' && apiPath.split('/')[3] !== 'calculate' && apiPath.split('/')[3] !== 'accept' && apiPath.split('/')[2] === 'quotes' ) {
-                const customerId = apiPath.split('/')[1];
-                const quoteId = apiPath.split('/')[3];
-                console.log("customerId:", customerId, "quoteId:", quoteId);
-                event.respondWith(handleUpdateQuote(customerId, quoteId, event.request));
-            }else if(apiPath.startsWith('customers/') && method === 'POST' && apiPath.split('/')[3] === 'calculate'){
-                const customerId = apiPath.split('/')[1];
-                const quoteId = apiPath.split('/')[3];
-                event.respondWith(handleCalculatePremium(customerId,quoteId));
-            } else if (apiPath.startsWith('customers/') && method === 'POST' && apiPath.split('/')[3] === 'accept') {
-                const customerId = apiPath.split('/')[1];
-                const quoteId = apiPath.split('/')[3];
-                event.respondWith(handleAcceptQuote(customerId,quoteId, event.request));
-            }else if(apiPath.startsWith('customers/') && method === 'GET' && apiPath.split('/')[2] === 'policies'){
-                const customerId = apiPath.split('/')[1];
-                const policyId = apiPath.split('/')[3];
-                event.respondWith(handleGetPolicy(customerId,policyId));
-            }else if (apiPath.startsWith('customers/') && method === 'POST' && apiPath.split('/')[2] === 'claims') {
-                const customerId = apiPath.split('/')[1];
-                event.respondWith(handleFileClaim(customerId, event.request));
-            } else if(apiPath.startsWith('customers/') && method === 'GET' && apiPath.split('/')[2] === 'claims'){
-                const customerId = apiPath.split('/')[1];
-                const claimId = apiPath.split('/')[3];
-                event.respondWith(handleGetClaim(customerId, claimId));
-            }else if(apiPath.startsWith('customers/') && method === 'GET' && apiPath.split('/')[3] === 'renewal'){
-                const customerId = apiPath.split('/')[1];
-                const policyId = apiPath.split('/')[3];
-                event.respondWith(handleGetRenewalInfo(customerId,policyId));
-            }else if(apiPath.startsWith('customers/') && method === 'POST' && apiPath.split('/')[3] === 'renew'){
-                const customerId = apiPath.split('/')[1];
-                const policyId = apiPath.split('/')[3];
-                event.respondWith(handleRenewPolicy(customerId,policyId, event.request));
-            }
-            else if (apiPath === 'messages' && method === 'POST') {
-              event.respondWith(handlePostMessage(event.request));
-            }
-            //added get all messages
-             else if (apiPath === 'messages' && method === 'GET'){
-                event.respondWith(handleGetAllMessages());
-            }
-             else if (apiPath.startsWith('search') && method === 'GET') {
-                const urlParams = new URLSearchParams(requestUrl.search);
-                const terms = urlParams.get('terms');
-                event.respondWith(handleSearchMessages(terms));
-            } else {
-                // Request for an API endpoint that's not handled
-                console.log('Service Worker: Passing request to network (API endpoint not found):', event.request.url);
-                event.respondWith(fetch(event.request));  // Pass to network
+                default:
+                    if(apiPath.startsWith('user/') && method === 'GET'){ // For /api/user/<userId>
+                        const userId = apiPath.substring('user/'.length);
+                         event.respondWith(
+                            new Response(JSON.stringify({ id: userId, name: 'User ' + userId }), {
+                                headers: { 'Content-Type': 'application/json' }
+                            })
+                        );
+                    } else if (apiPath.startsWith('search') && method === 'GET') {
+                        const urlParams = new URLSearchParams(requestUrl.search);
+                        const terms = urlParams.get('terms');
+                        event.respondWith(handleSearchMessages(terms));
+
+                    // Handle other customer-related routes (quotes, policies, claims)
+                    } else if (apiPath.startsWith('customers/')) {
+                        const parts = apiPath.split('/');
+                        const customerId = parts[1];
+
+                        if (parts[2] === 'quotes' && method === 'POST') {
+                            event.respondWith(handleStartQuote(customerId, event.request));
+                        } else if (parts[2] === 'quotes' && parts.length === 4 && method === 'PUT') {
+                            const quoteId = parts[3];
+                             event.respondWith(handleUpdateQuote(customerId, quoteId, event.request));
+                        } else if (parts[2] === 'quotes' && parts[4] === 'calculate' && method === 'POST') {
+                            const quoteId = parts[3];
+                            event.respondWith(handleCalculatePremium(customerId, quoteId));
+                        } else if (parts[2] === 'quotes' && parts[4] === 'accept' && method === 'POST') {
+                            const quoteId = parts[3];
+                            event.respondWith(handleAcceptQuote(customerId, quoteId, event.request));
+                        } else if (parts[2] === 'policies' && parts.length === 4 && method === 'GET') {
+                            const policyId = parts[3];
+                            event.respondWith(handleGetPolicy(customerId, policyId));
+                        } else if (parts[2] === 'claims' && method === 'POST') {
+                            event.respondWith(handleFileClaim(customerId, event.request));
+                        } else if (parts[2] === 'claims' && parts.length === 4 && method === 'GET') {
+                            const claimId = parts[3];
+                            event.respondWith(handleGetClaim(customerId, claimId));
+                        } else if (parts[2] === 'policies' && parts[4] === 'renewal' && method === 'GET') {
+                            const policyId = parts[3];
+                            event.respondWith(handleGetRenewalInfo(customerId, policyId));
+                        } else if (parts[2] === 'policies' && parts[4] === 'renew' && method === 'POST') {
+                            const policyId = parts[3];
+                            event.respondWith(handleRenewPolicy(customerId, policyId, event.request));
+                        }
+                        else {
+                            console.log('Service Worker: Passing request to network (Unhandled customer route):', event.request.url);
+                            event.respondWith(fetch(event.request));
+                        }
+                    }
+                     else {
+                        console.log('Service Worker: Passing request to network (API endpoint not found):', event.request.url);
+                        event.respondWith(fetch(event.request));
+                    }
+                    break; // Important: Add break after each case
             }
         } else {
-            // Request for a non-API resource (e.g., HTML, CSS, JS files)
             console.log('Service Worker: Passing request to network (Non-API request):', event.request.url);
-            event.respondWith(fetch(event.request)); // Pass to network
+            event.respondWith(fetch(event.request));
         }
-
     } else {
-        // Request is not within the base path - let the network handle it
         console.log('Service Worker: Passing request to network (not in base path):', event.request.url);
         event.respondWith(fetch(event.request));
     }
