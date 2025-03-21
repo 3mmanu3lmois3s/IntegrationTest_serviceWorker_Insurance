@@ -1,9 +1,9 @@
 // main.js
 let newWorker;
-const basePath = '/IntegrationTest_serviceWorker_Insurance';
+const basePath = '/IntegrationTest_serviceWorker_Insurance/'; // ADD TRAILING SLASH
 
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register(basePath + '/sw.js')
+    navigator.serviceWorker.register(basePath + 'sw.js')  // basePath already includes the /
         .then(registration => {
             console.log('Service Worker registered with scope:', registration.scope);
             if (registration.waiting) {
@@ -52,20 +52,37 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.target.matches('button[data-api-url]')) {
             const button = event.target;
             const step = parseInt(button.dataset.apiStep);
-            //Sequential validation
-            if (!isStepValid(step)) {
-                    let missingData = "";
-                    if(typeof customerId === 'undefined' && step>0) missingData += "customerId ";
-                    if(typeof quoteId === 'undefined' && (step > 1 && step !=6 && step < 10)) missingData += "quoteId ";
-                    if(typeof policyId === 'undefined' && (step > 5 && step !=8)) missingData += "policyId ";
-                    if(typeof claimId === 'undefined' && step == 8) missingData += "claimId ";
-
-                    document.getElementById('response').textContent = `Error: Missing data: ${missingData} to perform this request.`;
-                    return;
-            }
-
             let apiUrl = button.dataset.apiUrl;
             const method = button.dataset.method;
+
+            // Combine step validity and data availability checks
+            let isValidRequest = true;
+            let missingData = "";
+
+            if (step > 0 && typeof customerId === 'undefined') {
+                missingData += "customerId ";
+                isValidRequest = false;
+            }
+            if ((step > 1 && step != 6 && step < 10) && typeof quoteId === 'undefined') {
+                missingData += "quoteId ";
+                isValidRequest = false;
+            }
+            if ((step > 5 && step != 8) && typeof policyId === 'undefined') {
+               missingData += "policyId ";
+               isValidRequest = false;
+            }
+
+            if (step == 8 && typeof claimId === 'undefined') {
+                missingData += "claimId ";
+                isValidRequest = false;
+
+            }
+
+            if (!isValidRequest) {
+                document.getElementById('response').textContent = `Error: Missing data: ${missingData} to perform this request.`;
+                return;
+            }
+
 
             // Replace placeholders with actual values
             apiUrl = apiUrl.replace(':customerId:', customerId);
@@ -76,28 +93,28 @@ document.addEventListener('DOMContentLoaded', () => {
             //Conditional body
             let bodyData = null;
             if (method === 'POST' || method === 'PUT') {
-              switch(step){
-                case 0: // Create Customer
-                    bodyData = { name: 'Test Customer', email: 'test@example.com', address: '123 Main St' };
-                    break;
-                case 2: //Start a Quote
-                    bodyData = {productId: "home-insurance"}
-                    break;
-                case 3: //Update Quote
-                    bodyData = {address: 'Fake st 123', city: 'Springfield'}
-                    break;
-                case 5://Accept Quote
-                    bodyData = {}
-                    break;
-                case 7://Create Claim
-                    bodyData = { policyId: policyId, description: "Wind damage to roof" }
-                    break;
-                case 10://Renew Policy
-                    bodyData = {}
-                    break;
-                default:
-                    bodyData = {}
-              }
+                switch(step){
+                    case 0: // Create Customer
+                        bodyData = { name: 'Test Customer', email: 'test@example.com', address: '123 Main St' };
+                        break;
+                    case 2: //Start a Quote
+                        bodyData = {productId: "home-insurance"}
+                        break;
+                    case 3: //Update Quote
+                        bodyData = {address: 'Fake st 123', city: 'Springfield'}
+                        break;
+                    case 5://Accept Quote
+                        bodyData = {}
+                        break;
+                    case 7://Create Claim
+                        bodyData = { policyId: policyId, description: "Wind damage to roof" }
+                        break;
+                    case 10://Renew Policy
+                        bodyData = {}
+                        break;
+                    default:
+                        bodyData = {}
+                }
             }
 
             try {
@@ -117,9 +134,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('response').textContent = 'Error: ' + error.message;
             }
         }
-     else if (event.target.id === 'updateSW' && newWorker) {
-        newWorker.postMessage({ action: 'skipWaiting' });
-    }
+       else if (event.target.id === 'updateSW' && newWorker) {
+            newWorker.postMessage({ action: 'skipWaiting' });
+        }
     });
 });
 
