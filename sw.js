@@ -695,7 +695,7 @@ async function handleFileClaim(customerId, request){
     }
 
     const claimId = `claim${nextClaimId++}`; // Simple ID generation
-    db.claims[claimId] = {
+    memoryStore.claims[claimId] = {
         claimId,
         customerId,
         policyId: body.policyId,
@@ -713,11 +713,11 @@ async function handleGetClaim(customerId, claimId){
     if (!customer) {
         throw new Error("Customer not found");
     }
-    if (!db.claims[claimId]) {
+    if (!memoryStore.claims[claimId]) {
         throw new Error("Claim not found");
     }
 
-    return new Response(JSON.stringify(db.claims[claimId]), {
+    return new Response(JSON.stringify(memoryStore.claims[claimId]), {
         headers: { 'Content-Type': 'application/json' }
     });
 }
