@@ -32,7 +32,7 @@ let claimId;
 // Initialize progress indicators
 function initializeProgressIndicators() {
     const indicatorsDiv = document.getElementById('progress-indicators');
-    for (let i = 0; i < 11; i++) {
+    for (let i = 0; i < 13; i++) {
         const indicator = document.createElement('span');
         indicator.classList.add('progress-indicator');
         indicator.id = 'indicator-' + i;
