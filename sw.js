@@ -690,7 +690,7 @@ async function handleFileClaim(customerId, request){
         throw new Error("Customer not found");
     }
     const body = await request.json();
-    if(!db.policies[body.policyId]){
+    if(!memoryStore.policies[body.policyId]){
          throw new Error("Policy not found");
     }
 
