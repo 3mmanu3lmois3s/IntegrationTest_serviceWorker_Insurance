@@ -461,22 +461,47 @@ async function handleGetProducts() {
     });
 }
 
-async function handleStartQuote(customerId, request){
-     const body = await request.json();
-    if (!db.customers[customerId]) {
-        throw new Error("Customer not found");
+async function handleStartQuote(customerId, request) {
+    try {
+        const body = await request.json();
+        if (!db) { // Use the global db variable, and check if it's initialized
+            await openDB();
+        }
+        const customer = await getCustomerFromDB(customerId);
+        if (!customer) {
+            throw new Error("Customer not found");
+        }
+        const quoteId = `quote-${Date.now()}`; // Use a timestamp-based ID
+        const quoteData = {
+            quoteId,
+            customerId,
+            productId: body.productId, // From the request
+            status: 'draft',
+            details: {} // Initial details are empty
+        };
+
+         const transaction = db.transaction([messageStoreName], 'readwrite');
+         const store = transaction.objectStore(messageStoreName);
+         const requestAdd = store.add(quoteData); // IndexedDB will auto-generate a key
+
+          requestAdd.onsuccess = () => {
+            console.log('Quote added to IndexedDB:', requestAdd.result); // result will be the key
+          };
+
+          requestAdd.onerror = (event) => {
+            console.error('Error adding Quote to IndexedDB:', event.target.error);
+          };
+
+        return new Response(JSON.stringify({ quoteId }), {
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        console.error("Error handling start quote:", error);
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
-    const quoteId = `quote${nextQuoteId++}`;
-    db.quotes[quoteId] = {
-        quoteId,
-        customerId,
-        productId: body.productId, //From the request
-        status: 'draft',
-        details: {} // Initial details are empty
-    };
-    return new Response(JSON.stringify({ quoteId }), {
-        headers: { 'Content-Type': 'application/json' }
-    });
 }
 
 async function handleUpdateQuote(customerId, quoteId, request){
