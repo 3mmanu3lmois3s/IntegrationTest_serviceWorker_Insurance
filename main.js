@@ -122,7 +122,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetchData(basePath + apiUrl, method, bodyData); //Add basepath here
                 // Removed setting response here.  Handled in fetchData.
                 // document.getElementById('response').textContent = JSON.stringify(response, null, 2);
-
+                // Skip visual mark for debug-only steps
+                if (step <= 10) {
+                    markStepComplete(step);
+                }
                     //Update variables if I get them from response
                 customerId = response.customerId || customerId;
                 quoteId = response.quoteId || quoteId;
@@ -212,11 +215,16 @@ updateOnlineStatus();
 
 
 function markStepComplete(step) {
-    document.getElementById('indicator-' + step).classList.add('complete');
-    // Store completed step in localStorage
+    const indicator = document.getElementById('indicator-' + step);
+    if (indicator) {
+        indicator.classList.add('complete');
+    } else {
+        console.warn(`No indicator found for step ${step}. Skipping visual mark.`);
+    }
+
     let completedSteps = JSON.parse(localStorage.getItem('completedSteps') || '[]');
     completedSteps.push(step);
-    completedSteps = [...new Set(completedSteps)].sort((a,b)=>a-b); //Avoid duplicates and sort
+    completedSteps = [...new Set(completedSteps)].sort((a, b) => a - b);
     localStorage.setItem('completedSteps', JSON.stringify(completedSteps));
 }
 
