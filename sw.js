@@ -285,12 +285,7 @@ self.addEventListener('fetch', (event) => {
         const relativePath = requestUrl.pathname.substring(basePath.length);
         const method = event.request.method;
 
-        // Handle /products route (outside of /api)
-        if (relativePath === 'products' && method === 'GET') {
-            return event.respondWith(handleGetProducts());
-        }
-
-        // Handle test routes (outside of /api)
+        // --- Test Routes (Handle FIRST) ---
         if (relativePath.startsWith('test/')) {
             if (relativePath === 'test/get' && method === 'GET') {
                 return event.respondWith(new Response(JSON.stringify({ message: 'GET test successful' })));
@@ -303,68 +298,72 @@ self.addEventListener('fetch', (event) => {
             }
         }
 
+        // Handle /products route (outside of /api)
+        if (relativePath === 'products' && method === 'GET') {
+            return event.respondWith(handleGetProducts());
+        }
 
+        // --- API Routes ---
         if (relativePath.startsWith('api/')) {
             const apiPath = relativePath.substring(4); // Remove 'api/'
 
-            // Correctly handle /api/data POST *before* the switch
+            // Correctly handle /api/data POST *before* the switch or any other specific route
             if (relativePath === 'api/data' && method === 'POST') {
                 return event.respondWith(handleCreateCustomer(event.request));
             }
 
-            switch (apiPath) {
-                case 'data': // Now only handles GET
-                    if (method === 'GET') {
-                        event.respondWith(
-                            new Response(JSON.stringify({ message: 'Hello from Service Worker! (data)' }), {
-                                headers: { 'Content-Type': 'application/json' }
-                            })
-                        );
-                    }
-                    break;
-                case 'users':
-                    if (method === 'GET') {
-                        event.respondWith(
-                            new Response(JSON.stringify([{ id: 1, name: 'John Doe' }, { id: 2, name: 'Jane Doe' }]), {
-                                headers: { 'Content-Type': 'application/json' }
-                            })
-                        );
-                    }
-                    break;
-                case 'customers':  //Handles get all customers
-                    if (method === 'GET'){
-                     event.respondWith(handleGetAllCustomers());
-                    }
-                    break;
-                case 'messages': // Handles POST and GET all messages
-                   if(method === 'POST'){
-                    event.respondWith(handlePostMessage(event.request));
-                   } else if (method === 'GET'){
-                    event.respondWith(handleGetAllMessages());
-                   }
-                   break;
-                default:
-                    if (apiPath.startsWith('user/') && method === 'GET') {
-                        const userId = apiPath.substring('user/'.length);
-                        event.respondWith(
-                            new Response(JSON.stringify({ id: userId, name: 'User ' + userId }), {
-                                headers: { 'Content-Type': 'application/json' }
-                            })
-                        );
-                    }
-                    else if (apiPath.startsWith('customers/') && method === 'GET') {
-                        const customerId = apiPath.split('/')[1]; // Get customer ID
-                        event.respondWith(handleGetCustomer(customerId));
-                    }
-                    else if (apiPath.startsWith('search') && method === 'GET') {
-                        const urlParams = new URLSearchParams(requestUrl.search);
-                        const terms = urlParams.get('terms');
-                        event.respondWith(handleSearchMessages(terms));
-                    } else {
-                        console.log('Service Worker: Passing request to network (API endpoint not found):', event.request.url);
-                        event.respondWith(fetch(event.request));
-                    }
+            // --- Specific API Route Handlers ---
+            // GET /api/data
+            if (apiPath === 'data' && method === 'GET') {
+                return event.respondWith(
+                    new Response(JSON.stringify({ message: 'Hello from Service Worker! (data)' }), {
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                );
             }
+             // GET /api/users
+            else if (apiPath === 'users' && method === 'GET') {
+               return event.respondWith(
+                    new Response(JSON.stringify([{ id: 1, name: 'John Doe' }, { id: 2, name: 'Jane Doe' }]), {
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                );
+            }
+            // POST /api/customers
+            else if (apiPath === 'customers' && method === 'POST') {
+                return event.respondWith(handleCreateCustomer(event.request));
+            // GET /api/customers (all customers)
+            }else if (apiPath === 'customers' && method === 'GET') {  //Handles get all customers
+              return  event.respondWith(handleGetAllCustomers());
+            }
+            // POST /api/customers/:customerId/quotes  <-- ADD THIS!
+            else if (apiPath.startsWith('customers/') && apiPath.includes('/quotes') && method === 'POST') {
+                const customerId = apiPath.split('/')[1]; // Extract customerId
+                return event.respondWith(handleStartQuote(customerId, event.request));
+            }
+           // GET /api/customers/:customerId
+            else if (apiPath.startsWith('customers/') && method === 'GET') {
+                const customerId = apiPath.split('/')[1]; // Get customer ID
+               return event.respondWith(handleGetCustomer(customerId));
+            }
+            // POST and GET /api/messages
+           else if (apiPath === 'messages' && method === 'POST') { // Handles POST and GET all messages
+                return event.respondWith(handlePostMessage(event.request));
+            }
+             else if (apiPath === 'messages' && method === 'GET'){
+                return event.respondWith(handleGetAllMessages());
+            }
+           // GET /api/search?terms=...
+            else if (apiPath.startsWith('search') && method === 'GET') {
+                const urlParams = new URLSearchParams(requestUrl.search);
+                const terms = urlParams.get('terms');
+                return event.respondWith(handleSearchMessages(terms));
+            }
+            else {
+                console.log('Service Worker: Passing request to network (API endpoint not found):', event.request.url);
+                return event.respondWith(fetch(event.request));
+            }
+
         } else {
             // Request for a non-API resource (e.g., HTML, CSS, JS files)
             console.log('Service Worker: Passing request to network (Non-API request):', event.request.url);
@@ -461,46 +460,56 @@ async function handleGetProducts() {
     });
 }
 
+// --- Helper Functions (Including handleStartQuote) ---
 async function handleStartQuote(customerId, request) {
     try {
-        const body = await request.json();
-        if (!db) { // Use the global db variable, and check if it's initialized
-            await openDB();
-        }
-        const customer = await getCustomerFromDB(customerId);
-        if (!customer) {
-            throw new Error("Customer not found");
-        }
-        const quoteId = `quote-${Date.now()}`; // Use a timestamp-based ID
-        const quoteData = {
-            quoteId,
-            customerId,
-            productId: body.productId, // From the request
-            status: 'draft',
-            details: {} // Initial details are empty
+      const body = await request.json();
+      const { productId } = body; // Destructure for clarity
+
+      if (!productId) {
+        return new Response(JSON.stringify({ error: 'Product ID is required to start a quote.' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      const quoteId = `quote-${Date.now()}`;
+      const quoteData = {
+        quoteId,
+        customerId,
+        productId,
+        status: 'pending',
+        // Add other initial quote data here (e.g., timestamp)
+      };
+
+      // Store the quote in IndexedDB
+      const db = await openDB();
+      const transaction = db.transaction([quotesStoreName], 'readwrite');
+      const store = transaction.objectStore(quotesStoreName);
+      const addRequest = store.add(quoteData);
+
+      return new Promise((resolve, reject) => {
+        addRequest.onsuccess = () => {
+          resolve(new Response(JSON.stringify({ quoteId }), {
+            headers: { 'Content-Type': 'application/json' }
+          }));
         };
 
-         const transaction = db.transaction([messageStoreName], 'readwrite');
-         const store = transaction.objectStore(messageStoreName);
-         const requestAdd = store.add(quoteData); // IndexedDB will auto-generate a key
-
-          requestAdd.onsuccess = () => {
-            console.log('Quote added to IndexedDB:', requestAdd.result); // result will be the key
-          };
-
-          requestAdd.onerror = (event) => {
-            console.error('Error adding Quote to IndexedDB:', event.target.error);
-          };
-
-        return new Response(JSON.stringify({ quoteId }), {
+        addRequest.onerror = (event) => {
+          console.error("Error adding quote to IndexedDB:", event.target.error);
+          reject(new Response(JSON.stringify({ error: 'Failed to start quote.' }), {
+            status: 500, // Internal Server Error
             headers: { 'Content-Type': 'application/json' }
-        });
+          }));
+        };
+      });
+
     } catch (error) {
-        console.error("Error handling start quote:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
+      console.error('Error in handleStartQuote:', error);
+      return new Response(JSON.stringify({ error: 'Failed to start quote: ' + error.message }), {
+        status: 400, // Bad Request (if, e.g., JSON parsing fails)
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 }
 
