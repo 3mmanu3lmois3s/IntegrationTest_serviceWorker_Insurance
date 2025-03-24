@@ -407,6 +407,18 @@ self.addEventListener('fetch', (event) => {
                 return event.respondWith(handleSearchMessages(terms));
             }
 
+
+                        // DEBUG: Get all policies
+            if (apiPath === 'debug/policies' && method === 'GET') {
+                return event.respondWith(handleDebugPolicies());
+            }
+
+            // DEBUG: Get all claims
+            if (apiPath === 'debug/claims' && method === 'GET') {
+                return event.respondWith(handleDebugClaims());
+            }
+
+
             // If nothing matched
             console.log('Service Worker: API endpoint not found, passing to network:', requestUrl.pathname);
             return event.respondWith(fetch(event.request));
@@ -798,3 +810,17 @@ async function handleRenewPolicy(customerId, policyId, request) {
         });
     }
 }
+
+async function handleDebugPolicies() {
+    return new Response(JSON.stringify(memoryStore.policies, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+    });
+}
+
+async function handleDebugClaims() {
+    return new Response(JSON.stringify(memoryStore.claims, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+    });
+}
+
+
