@@ -54,11 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const step = parseInt(button.dataset.apiStep);
             let apiUrl = button.dataset.apiUrl;
             const method = button.dataset.method;
-    
+
             // More specific data dependency checks
             let isValidRequest = true;
             let missingData = "";
-    
+
             // Only check for customerId if the step REQUIRES it
             if (step !== 1 && step > 0 && typeof customerId === 'undefined') { // Exclude Step 1 (Get Products)
                 missingData += "customerId ";
@@ -69,16 +69,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 isValidRequest = false;
             }
             if ((step > 5 && step != 8) && typeof policyId === 'undefined') {
-               missingData += "policyId ";
-               isValidRequest = false;
+                missingData += "policyId ";
+                isValidRequest = false;
             }
-    
+
             if (step == 8 && typeof claimId === 'undefined') {
                 missingData += "claimId ";
                 isValidRequest = false;
-    
+
             }
-    
+
             if (!isValidRequest) {
                 document.getElementById('response').textContent = `Error: Missing data: ${missingData} to perform this request.`;
                 return;
@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
             apiUrl = apiUrl.replace(':quoteId:', quoteId);
             apiUrl = apiUrl.replace(':policyId:', policyId);
             apiUrl = apiUrl.replace(':claimId:', claimId)
-    
+
             //Conditional body
             let bodyData = null;
             if (method === 'POST' || method === 'PUT') {
@@ -116,24 +116,29 @@ document.addEventListener('DOMContentLoaded', () => {
                         bodyData = {}
                 }
             }
-    
+
             try {
                 const response = await fetchData(basePath + apiUrl, method, bodyData); //Add basepath here
-                document.getElementById('response').textContent = JSON.stringify(response, null, 2);
-    
+                // Removed setting response here.  Handled in fetchData.
+                // document.getElementById('response').textContent = JSON.stringify(response, null, 2);
+
                     //Update variables if I get them from response
                 customerId = response.customerId || customerId;
                 quoteId = response.quoteId || quoteId;
                 policyId = response.policyId || policyId;
                 claimId = response.claimId || claimId;
-    
+
                 // Mark step as complete
                 markStepComplete(step);
-    
+
             } catch (error) {
-                document.getElementById('response').textContent = 'Error: ' + error.message;
+              // Error handling is now *inside* fetchData, so this is less likely to be hit.
+              //  But, it's still good to have a top-level catch.
+                console.error("Top-level error:", error); // Log for debugging
+                displayResponse(`Error: ${error.message}`); // Show a user-friendly message
+
             }
-    
+
         }
         else if (event.target.id === 'updateSW' && newWorker) {
             newWorker.postMessage({ action: 'skipWaiting' });
@@ -151,10 +156,35 @@ async function fetchData(url, method = 'GET', bodyData = null) {
     }
 
     const response = await fetch(url, options);
+
     if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
+        // Handle HTTP errors (4xx or 5xx)
+        let errorText = `HTTP error! Status: ${response.status}`;
+        try {
+            // Try to get more detailed error information from the response body
+            const errorData = await response.json(); // Could fail if body isn't JSON
+            errorText += `\nError: ${errorData.error || JSON.stringify(errorData)}`;
+        } catch (e) {
+            // If we couldn't parse the error as JSON, use the raw text
+            errorText += `\nError: ${await response.text()}`;
+        }
+        displayResponse(errorText); //Update the display.
+        throw new Error(errorText); // Re-throw to be caught by the outer try...catch
     }
-    return response.json();
+
+    // *Now* it's safe to parse as JSON (if the response is OK)
+    try {
+      const data = await response.json();
+      displayResponse(JSON.stringify(data, null, 2)); // Pretty-print the JSON
+      return data; // Return the parsed data for further use
+
+    } catch (error) {
+        // Catch JSON parsing errors (like the "Unexpected end of JSON input")
+        console.error("JSON parsing error:", error); // For debugging
+        displayResponse("Error: Invalid JSON response from server.");
+        throw error; // Re-throw to be caught by the caller.  Important!
+    }
+
 }
 
 
@@ -198,4 +228,10 @@ function loadProgress() {
     completedSteps.forEach(step => {
         document.getElementById('indicator-' + step).classList.add('complete');
     });
+}
+
+// Add the displayResponse function (if you haven't already)
+function displayResponse(message) {
+    const responseDiv = document.getElementById('response');
+    responseDiv.textContent = message;
 }
