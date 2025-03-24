@@ -278,101 +278,103 @@ self.addEventListener('install', function(event) {
 });
 
 // --- Fetch Event Listener (BEFORE activate) ---
-// --- Fetch Event Listener (CORRECTED) ---
 self.addEventListener('fetch', (event) => {
     const requestUrl = new URL(event.request.url);
-  
+
     if (requestUrl.pathname.startsWith(basePath)) {
-      const relativePath = requestUrl.pathname.substring(basePath.length);
-      const method = event.request.method;
-  
-      // Handle test routes (before api routes)
-          if (relativePath.startsWith('test/')) {
+        const relativePath = requestUrl.pathname.substring(basePath.length);
+        const method = event.request.method;
+
+        // --- Test Routes (Handle FIRST) ---
+        if (relativePath.startsWith('test/')) {
             if (relativePath === 'test/get' && method === 'GET') {
-              return event.respondWith(new Response(JSON.stringify({ message: 'GET test successful' }), { headers: { 'Content-Type': 'application/json' }}));
+                return event.respondWith(new Response(JSON.stringify({ message: 'GET test successful' })));
             } else if (relativePath === 'test/post' && method === 'POST') {
-              return event.respondWith(new Response(JSON.stringify({ message: 'POST test successful' }), { headers: { 'Content-Type': 'application/json' }}));
+                return event.respondWith(new Response(JSON.stringify({ message: 'POST test successful' })));
             } else if (relativePath === 'test/put' && method === 'PUT') {
-              return event.respondWith(new Response(JSON.stringify({ message: 'PUT test successful' }), { headers: { 'Content-Type': 'application/json' }}));
+                return event.respondWith(new Response(JSON.stringify({ message: 'PUT test successful' })));
             } else if (relativePath === 'test/delete' && method === 'DELETE') {
-              return event.respondWith(new Response(JSON.stringify({ message: 'DELETE test successful' }), { headers: { 'Content-Type': 'application/json' }}));
+                return event.respondWith(new Response(JSON.stringify({ message: 'DELETE test successful' })));
             }
-          }
-  
-      // Handle API requests
-      if (relativePath.startsWith('api/')) {
-        const apiPath = relativePath.substring(4); // Remove 'api/'
-  
-        if (apiPath === 'data' && method === 'GET') {
-          event.respondWith(
-            new Response(JSON.stringify({ message: 'Hello from Service Worker! (data)' }), {
-              headers: { 'Content-Type': 'application/json' }
-            })
-          );
-          return; // Add return here
         }
-  
-        if (apiPath === 'users' && method === 'GET') {
-          event.respondWith(
-            new Response(JSON.stringify([{ id: 1, name: 'John Doe' }, { id: 2, name: 'Jane Doe' }]), {
-              headers: { 'Content-Type': 'application/json' }
-            })
-          );
-          return; // Add return here
+
+        // Handle /products route (outside of /api)
+        if (relativePath === 'products' && method === 'GET') {
+            return event.respondWith(handleGetProducts());
         }
-  
-        if (apiPath === 'customers' && method === 'POST') {
-          event.respondWith(handleCreateCustomer(event.request));
-          return; // Add return here
+
+        // --- API Routes ---
+        if (relativePath.startsWith('api/')) {
+            const apiPath = relativePath.substring(4); // Remove 'api/'
+
+            // Correctly handle /api/data POST *before* the switch or any other specific route
+            if (relativePath === 'api/data' && method === 'POST') {
+                return event.respondWith(handleCreateCustomer(event.request));
+            }
+
+            // --- Specific API Route Handlers ---
+            // GET /api/data
+            if (apiPath === 'data' && method === 'GET') {
+                return event.respondWith(
+                    new Response(JSON.stringify({ message: 'Hello from Service Worker! (data)' }), {
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                );
+            }
+             // GET /api/users
+            else if (apiPath === 'users' && method === 'GET') {
+               return event.respondWith(
+                    new Response(JSON.stringify([{ id: 1, name: 'John Doe' }, { id: 2, name: 'Jane Doe' }]), {
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                );
+            }
+            // POST /api/customers
+            else if (apiPath === 'customers' && method === 'POST') {
+                return event.respondWith(handleCreateCustomer(event.request));
+            // GET /api/customers (all customers)
+            }else if (apiPath === 'customers' && method === 'GET') {  //Handles get all customers
+              return  event.respondWith(handleGetAllCustomers());
+            }
+            // POST /api/customers/:customerId/quotes  <-- ADD THIS!
+            else if (apiPath.startsWith('customers/') && apiPath.includes('/quotes') && method === 'POST') {
+                const customerId = apiPath.split('/')[1]; // Extract customerId
+                return event.respondWith(handleStartQuote(customerId, event.request));
+            }
+           // GET /api/customers/:customerId
+            else if (apiPath.startsWith('customers/') && method === 'GET') {
+                const customerId = apiPath.split('/')[1]; // Get customer ID
+               return event.respondWith(handleGetCustomer(customerId));
+            }
+            // POST and GET /api/messages
+           else if (apiPath === 'messages' && method === 'POST') { // Handles POST and GET all messages
+                return event.respondWith(handlePostMessage(event.request));
+            }
+             else if (apiPath === 'messages' && method === 'GET'){
+                return event.respondWith(handleGetAllMessages());
+            }
+           // GET /api/search?terms=...
+            else if (apiPath.startsWith('search') && method === 'GET') {
+                const urlParams = new URLSearchParams(requestUrl.search);
+                const terms = urlParams.get('terms');
+                return event.respondWith(handleSearchMessages(terms));
+            }
+            else {
+                console.log('Service Worker: Passing request to network (API endpoint not found):', event.request.url);
+                return event.respondWith(fetch(event.request));
+            }
+
+        } else {
+            // Request for a non-API resource (e.g., HTML, CSS, JS files)
+            console.log('Service Worker: Passing request to network (Non-API request):', event.request.url);
+            event.respondWith(fetch(event.request));
         }
-  
-        if (apiPath === 'customers' && method === 'GET') {
-          event.respondWith(handleGetAllCustomers());
-          return; // Add return here
-        }
-  
-        if (apiPath.startsWith('customers/') && apiPath.endsWith('/quotes') && method === 'POST') {
-          const customerId = apiPath.split('/')[1];
-          event.respondWith(handleStartQuote(customerId, event.request));
-          return;
-        }
-  
-        if (apiPath.startsWith('customers/') && method === 'GET') {
-            const customerId = apiPath.split('/')[1];
-            event.respondWith(handleGetCustomer(customerId));
-            return; // Add return here
-        }
-  
-        if (apiPath === 'messages' && method === 'POST') {
-            event.respondWith(handlePostMessage(event.request));
-            return; //add
-        }
-        if (apiPath === 'messages' && method === 'GET') {
-            event.respondWith(handleGetAllMessages());
-            return;
-        }
-  
-        if (apiPath.startsWith('search') && method === 'GET') {
-          const urlParams = new URLSearchParams(requestUrl.search);
-          const terms = urlParams.get('terms');
-          event.respondWith(handleSearchMessages(terms));
-          return;
-        }
-  
-          console.log('Service Worker: Passing request to network (API endpoint not found):', event.request.url);
-          event.respondWith(fetch(event.request));
-  
-  
-      } else {
-        // Request for a non-API resource (HTML, CSS, JS)
-        console.log('Service Worker: Passing request to network (Non-API request):', event.request.url);
-        event.respondWith(fetch(event.request));
-      }
     } else {
-      console.log('Service Worker: Passing request to network (not in base path):', event.request.url);
-      event.respondWith(fetch(event.request));
+        // Request is not within the base path
+        console.log('Service Worker: Passing request to network (not in base path):', event.request.url);
+        event.respondWith(fetch(event.request));
     }
-  });
+});
 
 self.addEventListener('activate', async function(event) {
     console.log('Service Worker activating.');
@@ -433,9 +435,32 @@ async function addCustomerToDB(customerData) {
 
 }
 
+async function handleGetCustomer(customerId) {
+    try {
+        const customer = await getCustomerFromDB(customerId);
+
+        if (customer) {
+            return new Response(JSON.stringify(customer), {
+                headers: { 'Content-Type': 'application/json' }
+            });
+        } else {
+            return new Response(JSON.stringify({ error: 'Customer not found' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+    } catch (error) {
+        console.error('Service Worker: Error in handleGetCustomer:', error);
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+}
+
 async function handleGetAllCustomers() {
     try {
-        const customers = await getAllCustomersFromDB(); // Use the IndexedDB helper
+        const customers = await getAllCustomersFromDB();
         return new Response(JSON.stringify(customers), {
             headers: { 'Content-Type': 'application/json' }
         });
@@ -448,7 +473,65 @@ async function handleGetAllCustomers() {
     }
 }
 
-async function handleGetProducts() {
+async function handlePostMessage(request) {
+  try {
+    const messageText = await request.text(); // Get raw text first
+    const messageData = JSON.parse(messageText); // THEN parse
+    const currentSize = await calculateTotalSize();
+    if (currentSize + messageText.length > 3000) {
+      return new Response(JSON.stringify({ error: 'Adding this message would exceed the 3000 character limit.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    const messageId = await addMessageToDB(messageData);
+    return new Response(JSON.stringify({ messageId }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('Service Worker: Error in handlePostMessage:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 400, // Or appropriate error code
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// New handler function to retrieve all messages
+async function handleGetAllMessages() {
+    try {
+        const messages = await getAllMessagesFromDB();
+        return new Response(JSON.stringify(messages), {
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        console.error('Service Worker: Error in handleGetAllMessages:', error);
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+}
+
+async function handleSearchMessages(terms) {
+  try {
+    const results = await searchData(terms);
+    return new Response(JSON.stringify(results), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('Service Worker: Error in handleSearchMessages:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+
+//Added to manage the logic of the fake API
+async function handleGetProducts(){
     const products = [
         { id: 'prod-1', name: 'Basic Insurance', description: 'Covers basic needs.' },
         { id: 'prod-2', name: 'Premium Insurance', description: 'Covers everything!' },
@@ -458,57 +541,25 @@ async function handleGetProducts() {
     });
 }
 
-// --- Helper Functions (Including handleStartQuote) ---
-async function handleStartQuote(customerId, request) {
-    try {
-      const body = await request.json();
-      const { productId } = body; // Destructure for clarity
 
-      if (!productId) {
-        return new Response(JSON.stringify({ error: 'Product ID is required to start a quote.' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-
-      const quoteId = `quote-${Date.now()}`;
-      const quoteData = {
+async function handleStartQuote(customerId, request){
+    console.log(customerId);
+     const body = await request.json();
+     console.log(body)
+    if (!db.customers[customerId]) {
+        throw new Error("Customer not found");
+    }
+    const quoteId = `quote${nextQuoteId++}`;
+    db.quotes[quoteId] = {
         quoteId,
         customerId,
-        productId,
-        status: 'pending',
-        // Add other initial quote data here (e.g., timestamp)
-      };
-
-      // Store the quote in IndexedDB
-      const db = await openDB();
-      const transaction = db.transaction([quotesStoreName], 'readwrite');
-      const store = transaction.objectStore(quotesStoreName);
-      const addRequest = store.add(quoteData);
-
-      return new Promise((resolve, reject) => {
-        addRequest.onsuccess = () => {
-          resolve(new Response(JSON.stringify({ quoteId }), {
-            headers: { 'Content-Type': 'application/json' }
-          }));
-        };
-
-        addRequest.onerror = (event) => {
-          console.error("Error adding quote to IndexedDB:", event.target.error);
-          reject(new Response(JSON.stringify({ error: 'Failed to start quote.' }), {
-            status: 500, // Internal Server Error
-            headers: { 'Content-Type': 'application/json' }
-          }));
-        };
-      });
-
-    } catch (error) {
-      console.error('Error in handleStartQuote:', error);
-      return new Response(JSON.stringify({ error: 'Failed to start quote: ' + error.message }), {
-        status: 400, // Bad Request (if, e.g., JSON parsing fails)
+        productId: body.productId, //From the request
+        status: 'draft',
+        details: {} // Initial details are empty
+    };
+    return new Response(JSON.stringify({ quoteId }), {
         headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    });
 }
 
 async function handleUpdateQuote(customerId, quoteId, request){
@@ -627,7 +678,7 @@ async function handleGetRenewalInfo(customerId, policyId){
     }
 
     const policy = db.policies[policyId];
-     // Check if the policy is near its end date (e.g., within 30 days)
+    // Check if the policy is near its end date (e.g., within 30 days)
     const endDate = new Date(policy.endDate);
     const now = new Date();
     const diffTime = endDate.getTime() - now.getTime();
@@ -635,7 +686,7 @@ async function handleGetRenewalInfo(customerId, policyId){
 
     let renewalInfo = {};
     if(diffDays <= 30){
-         const newPremium = Math.floor(Math.random() * 1000) + 500; // Random
+        const newPremium = Math.floor(Math.random() * 1000) + 500; // Random
         renewalInfo = {
             policyId: policyId,
             newStartDate: endDate.toISOString(),
@@ -646,7 +697,7 @@ async function handleGetRenewalInfo(customerId, policyId){
     } else {
         renewalInfo = {status: 'not_available'}
     }
-      return new Response(JSON.stringify(renewalInfo), {
+     return new Response(JSON.stringify(renewalInfo), {
         headers: { 'Content-Type': 'application/json' }
     });
 }
@@ -658,8 +709,8 @@ async function handleRenewPolicy(customerId, policyId, request){
     if (!db.policies[policyId]) {
         throw new Error("Policy not found");
     }
-     const policy = db.policies[policyId];
-     // Check if the policy is near its end date (e.g., within 30 days)
+    const policy = db.policies[policyId];
+    // Check if the policy is near its end date (e.g., within 30 days)
     const endDate = new Date(policy.endDate);
     const now = new Date();
     const diffTime = endDate.getTime() - now.getTime();
@@ -668,7 +719,7 @@ async function handleRenewPolicy(customerId, policyId, request){
     if(diffDays > 30){
         throw new Error("Policy is not renewable yet");
     }
-     //Update policy
+    //Update policy
     policy.startDate = endDate.toISOString();
     policy.endDate = new Date(new Date(endDate).setFullYear(endDate.getFullYear() + 1)).toISOString(); // One year later
 
