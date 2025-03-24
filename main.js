@@ -54,12 +54,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const step = parseInt(button.dataset.apiStep);
             let apiUrl = button.dataset.apiUrl;
             const method = button.dataset.method;
-
-            // Combine step validity and data availability checks
+    
+            // More specific data dependency checks
             let isValidRequest = true;
             let missingData = "";
-
-            if (step > 0 && typeof customerId === 'undefined') {
+    
+            // Only check for customerId if the step REQUIRES it
+            if (step !== 1 && step > 0 && typeof customerId === 'undefined') { // Exclude Step 1 (Get Products)
                 missingData += "customerId ";
                 isValidRequest = false;
             }
@@ -71,25 +72,24 @@ document.addEventListener('DOMContentLoaded', () => {
                missingData += "policyId ";
                isValidRequest = false;
             }
-
+    
             if (step == 8 && typeof claimId === 'undefined') {
                 missingData += "claimId ";
                 isValidRequest = false;
-
+    
             }
-
+    
             if (!isValidRequest) {
                 document.getElementById('response').textContent = `Error: Missing data: ${missingData} to perform this request.`;
                 return;
             }
-
-
-            // Replace placeholders with actual values
+            // ... rest of the fetch logic (no changes needed here) ...
+             // Replace placeholders with actual values
             apiUrl = apiUrl.replace(':customerId:', customerId);
             apiUrl = apiUrl.replace(':quoteId:', quoteId);
             apiUrl = apiUrl.replace(':policyId:', policyId);
             apiUrl = apiUrl.replace(':claimId:', claimId)
-
+    
             //Conditional body
             let bodyData = null;
             if (method === 'POST' || method === 'PUT') {
@@ -116,25 +116,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         bodyData = {}
                 }
             }
-
+    
             try {
                 const response = await fetchData(basePath + apiUrl, method, bodyData); //Add basepath here
                 document.getElementById('response').textContent = JSON.stringify(response, null, 2);
-
-                 //Update variables if I get them from response
+    
+                    //Update variables if I get them from response
                 customerId = response.customerId || customerId;
                 quoteId = response.quoteId || quoteId;
                 policyId = response.policyId || policyId;
                 claimId = response.claimId || claimId;
-
+    
                 // Mark step as complete
                 markStepComplete(step);
-
+    
             } catch (error) {
                 document.getElementById('response').textContent = 'Error: ' + error.message;
             }
+    
         }
-       else if (event.target.id === 'updateSW' && newWorker) {
+        else if (event.target.id === 'updateSW' && newWorker) {
             newWorker.postMessage({ action: 'skipWaiting' });
         }
     });
