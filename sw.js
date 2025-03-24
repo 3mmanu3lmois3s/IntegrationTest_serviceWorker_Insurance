@@ -654,7 +654,7 @@ async function handleAcceptQuote(customerId, quoteId, request){
         throw new Error("Quote is not in 'calculated' status. Cannot accept.");
     }
     const policyId = `policy${nextPolicyId++}`;
-    db.policies[policyId] = {
+    memoryStore.policies[policyId] = {
         policyId,
         customerId,
         quoteId,
@@ -676,10 +676,10 @@ async function handleGetPolicy(customerId, policyId){
     if (!customer) {
         throw new Error("Customer not found");
     }
-   if (!db.policies[policyId]) {
+   if (!memoryStore.policies[policyId]) {
         throw new Error("Policy not found");
     }
-    return new Response(JSON.stringify(db.policies[policyId]), {
+    return new Response(JSON.stringify(memoryStore.policies[policyId]), {
         headers: { 'Content-Type': 'application/json' }
     });
 }
@@ -727,11 +727,11 @@ async function handleGetRenewalInfo(customerId, policyId){
     if (!customer) {
         throw new Error("Customer not found");
     }
-    if (!db.policies[policyId]) {
+    if (!memoryStore.policies[policyId]) {
         throw new Error("Policy not found");
     }
 
-    const policy = db.policies[policyId];
+    const policy = memoryStore.policies[policyId];
     // Check if the policy is near its end date (e.g., within 30 days)
     const endDate = new Date(policy.endDate);
     const now = new Date();
@@ -761,10 +761,10 @@ async function handleRenewPolicy(customerId, policyId, request){
     if (!customer) {
         throw new Error("Customer not found");
     }
-    if (!db.policies[policyId]) {
+    if (!memoryStore.policies[policyId]) {
         throw new Error("Policy not found");
     }
-    const policy = db.policies[policyId];
+    const policy = memoryStore.policies[policyId];
     // Check if the policy is near its end date (e.g., within 30 days)
     const endDate = new Date(policy.endDate);
     const now = new Date();
