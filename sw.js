@@ -1,12 +1,6 @@
 // sw.js
 /*jshint esversion: 6 */
 /*jshint worker: true */
-const basePath = '/IntegrationTest_serviceWorker_Insurance/'; // Corrected base path
-const dbName = 'insuranceDB';
-const customerStoreName = 'customers';
-const messageStoreName = 'messages';
-let db;
-
 let memoryStore = {
     quotes: {},
     policies: {},
@@ -16,6 +10,14 @@ let memoryStore = {
   let nextQuoteId = 1;
   let nextPolicyId = 1;
   let nextClaimId = 1;
+
+const basePath = '/IntegrationTest_serviceWorker_Insurance/'; // Corrected base path
+const dbName = 'insuranceDB';
+const customerStoreName = 'customers';
+const messageStoreName = 'messages';
+let db;
+
+
   
 
 
@@ -595,7 +597,7 @@ async function handleStartQuote(customerId, request){
          throw new Error("Customer not found");
      }
     const quoteId = `quote${nextQuoteId++}`;
-    db.quotes[quoteId] = {
+    memoryStore.quotes[quoteId] = {
         quoteId,
         customerId,
         productId: body.productId, //From the request
@@ -612,11 +614,11 @@ async function handleUpdateQuote(customerId, quoteId, request){
     if (!customer) {
         throw new Error("Customer not found");
     }
-    if (!db.quotes[quoteId]) {
+    if (!memoryStore.quotes[quoteId]) {
         throw new Error("Quote not found");
     }
     const body = await request.json();
-    db.quotes[quoteId].details = { ...db.quotes[quoteId].details, ...body }; //Update the details
+    memoryStore.quotes[quoteId].details = { ...memoryStore.quotes[quoteId].details, ...body }; //Update the details
     return new Response(JSON.stringify({success: true}), {
         headers: { 'Content-Type': 'application/json' }
     });
@@ -627,13 +629,13 @@ async function handleCalculatePremium(customerId, quoteId){
     if (!customer) {
         throw new Error("Customer not found");
     }
-    if (!db.quotes[quoteId]) {
+    if (!memoryStore.quotes[quoteId]) {
         throw new Error("Quote not found");
     }
     //Very simple mock calculation
     const premium = Math.floor(Math.random() * 1000) + 500; //Random between 500 - 1500
-    db.quotes[quoteId].premium = premium;
-    db.quotes[quoteId].status = 'calculated';
+    memoryStore.quotes[quoteId].premium = premium;
+    memoryStore.quotes[quoteId].status = 'calculated';
 
     return new Response(JSON.stringify({ premium: premium }), {
         headers: { 'Content-Type': 'application/json' }
@@ -645,10 +647,10 @@ async function handleAcceptQuote(customerId, quoteId, request){
     if (!customer) {
         throw new Error("Customer not found");
     }
-    if (!db.quotes[quoteId]) {
+    if (!memoryStore.quotes[quoteId]) {
         throw new Error("Quote not found");
     }
-    if(db.quotes[quoteId].status !== 'calculated'){
+    if(memoryStore.quotes[quoteId].status !== 'calculated'){
         throw new Error("Quote is not in 'calculated' status. Cannot accept.");
     }
     const policyId = `policy${nextPolicyId++}`;
@@ -662,7 +664,7 @@ async function handleAcceptQuote(customerId, quoteId, request){
     };
 
      //Clean quote
-    delete db.quotes[quoteId];
+    delete memoryStore.quotes[quoteId];
 
     return new Response(JSON.stringify({ policyId }), {
         headers: { 'Content-Type': 'application/json' }
