@@ -451,8 +451,12 @@ async function handleGetAllCustomers() {
     }
 }
 
-async function handleGetProducts(){
-    return new Response(JSON.stringify(db.products), {
+async function handleGetProducts() {
+    const products = [
+        { id: 'prod-1', name: 'Basic Insurance', description: 'Covers basic needs.' },
+        { id: 'prod-2', name: 'Premium Insurance', description: 'Covers everything!' },
+    ];
+    return new Response(JSON.stringify(products), {
         headers: { 'Content-Type': 'application/json' }
     });
 }
