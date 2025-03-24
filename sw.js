@@ -756,29 +756,45 @@ async function handleGetRenewalInfo(customerId, policyId){
     });
 }
 
-async function handleRenewPolicy(customerId, policyId, request){
-    const customer = await getCustomerFromDB(customerId);
-    if (!customer) {
-        throw new Error("Customer not found");
-    }
-    if (!memoryStore.policies[policyId]) {
-        throw new Error("Policy not found");
-    }
-    const policy = memoryStore.policies[policyId];
-    // Check if the policy is near its end date (e.g., within 30 days)
-    const endDate = new Date(policy.endDate);
-    const now = new Date();
-    const diffTime = endDate.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+async function handleRenewPolicy(customerId, policyId, request) {
+    try {
+        const customer = await getCustomerFromDB(customerId);
+        if (!customer) {
+            throw new Error("Customer not found");
+        }
 
-    if(diffDays > 30){
-        throw new Error("Policy is not renewable yet");
-    }
-    //Update policy
-    policy.startDate = endDate.toISOString();
-    policy.endDate = new Date(new Date(endDate).setFullYear(endDate.getFullYear() + 1)).toISOString(); // One year later
+        const policy = memoryStore.policies[policyId];
+        if (!policy) {
+            throw new Error("Policy not found");
+        }
 
-    return new Response(JSON.stringify({success: true}), {
-        headers: { 'Content-Type': 'application/json' }
-    });
+        const endDate = new Date(policy.endDate);
+        const now = new Date();
+        const diffDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (diffDays > 30) {
+            return new Response(JSON.stringify({ 
+                error: "Policy is not renewable yet", 
+                daysRemaining: diffDays 
+            }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Update policy dates
+        policy.startDate = endDate.toISOString();
+        policy.endDate = new Date(new Date(endDate).setFullYear(endDate.getFullYear() + 1)).toISOString();
+
+        return new Response(JSON.stringify({ success: true }), {
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+    } catch (error) {
+        console.error("handleRenewPolicy error:", error);
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
 }
