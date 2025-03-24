@@ -590,9 +590,10 @@ async function handleStartQuote(customerId, request){
     console.log(customerId);
      const body = await request.json();
      console.log(body)
-    if (!db.customers[customerId]) {
-        throw new Error("Customer not found");
-    }
+     const customer = await getCustomerFromDB(customerId);
+     if (!customer) {
+         throw new Error("Customer not found");
+     }
     const quoteId = `quote${nextQuoteId++}`;
     db.quotes[quoteId] = {
         quoteId,
@@ -607,7 +608,8 @@ async function handleStartQuote(customerId, request){
 }
 
 async function handleUpdateQuote(customerId, quoteId, request){
-    if (!db.customers[customerId]) {
+    const customer = await getCustomerFromDB(customerId);
+    if (!customer) {
         throw new Error("Customer not found");
     }
     if (!db.quotes[quoteId]) {
@@ -621,7 +623,8 @@ async function handleUpdateQuote(customerId, quoteId, request){
 }
 
 async function handleCalculatePremium(customerId, quoteId){
-     if (!db.customers[customerId]) {
+    const customer = await getCustomerFromDB(customerId);
+    if (!customer) {
         throw new Error("Customer not found");
     }
     if (!db.quotes[quoteId]) {
@@ -638,7 +641,8 @@ async function handleCalculatePremium(customerId, quoteId){
 }
 
 async function handleAcceptQuote(customerId, quoteId, request){
-    if (!db.customers[customerId]) {
+    const customer = await getCustomerFromDB(customerId);
+    if (!customer) {
         throw new Error("Customer not found");
     }
     if (!db.quotes[quoteId]) {
@@ -666,7 +670,8 @@ async function handleAcceptQuote(customerId, quoteId, request){
 }
 
 async function handleGetPolicy(customerId, policyId){
-    if (!db.customers[customerId]) {
+    const customer = await getCustomerFromDB(customerId);
+    if (!customer) {
         throw new Error("Customer not found");
     }
    if (!db.policies[policyId]) {
@@ -678,7 +683,8 @@ async function handleGetPolicy(customerId, policyId){
 }
 
 async function handleFileClaim(customerId, request){
-    if (!db.customers[customerId]) {
+    const customer = await getCustomerFromDB(customerId);
+    if (!customer) {
         throw new Error("Customer not found");
     }
     const body = await request.json();
@@ -701,7 +707,8 @@ async function handleFileClaim(customerId, request){
 }
 
 async function handleGetClaim(customerId, claimId){
- if (!db.customers[customerId]) {
+    const customer = await getCustomerFromDB(customerId);
+    if (!customer) {
         throw new Error("Customer not found");
     }
     if (!db.claims[claimId]) {
@@ -714,7 +721,8 @@ async function handleGetClaim(customerId, claimId){
 }
 
 async function handleGetRenewalInfo(customerId, policyId){
- if (!db.customers[customerId]) {
+    const customer = await getCustomerFromDB(customerId);
+    if (!customer) {
         throw new Error("Customer not found");
     }
     if (!db.policies[policyId]) {
@@ -747,7 +755,8 @@ async function handleGetRenewalInfo(customerId, policyId){
 }
 
 async function handleRenewPolicy(customerId, policyId, request){
- if (!db.customers[customerId]) {
+    const customer = await getCustomerFromDB(customerId);
+    if (!customer) {
         throw new Error("Customer not found");
     }
     if (!db.policies[policyId]) {
