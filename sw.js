@@ -7,6 +7,18 @@ const customerStoreName = 'customers';
 const messageStoreName = 'messages';
 let db;
 
+let memoryStore = {
+    quotes: {},
+    policies: {},
+    claims: {}
+  };
+  
+  let nextQuoteId = 1;
+  let nextPolicyId = 1;
+  let nextClaimId = 1;
+  
+
+
 // --- IndexedDB Setup ---
 
 function openDB() {
@@ -285,7 +297,7 @@ self.addEventListener('fetch', (event) => {
         const relativePath = requestUrl.pathname.substring(basePath.length);
         const method = event.request.method;
 
-        // --- Test Routes (Handle FIRST) ---
+        // --- Test routes ---
         if (relativePath.startsWith('test/')) {
             if (relativePath === 'test/get' && method === 'GET') {
                 return event.respondWith(new Response(JSON.stringify({ message: 'GET test successful' })));
@@ -298,7 +310,7 @@ self.addEventListener('fetch', (event) => {
             }
         }
 
-        // Handle /products route (outside of /api)
+        // --- Standalone route: /products ---
         if (relativePath === 'products' && method === 'GET') {
             return event.respondWith(handleGetProducts());
         }
@@ -307,74 +319,106 @@ self.addEventListener('fetch', (event) => {
         if (relativePath.startsWith('api/')) {
             const apiPath = relativePath.substring(4); // Remove 'api/'
 
-            // Correctly handle /api/data POST *before* the switch or any other specific route
-            if (relativePath === 'api/data' && method === 'POST') {
+            // Create Customer (POST)
+            if (apiPath === 'data' && method === 'POST') {
                 return event.respondWith(handleCreateCustomer(event.request));
             }
 
-            // --- Specific API Route Handlers ---
-            // GET /api/data
-            if (apiPath === 'data' && method === 'GET') {
-                return event.respondWith(
-                    new Response(JSON.stringify({ message: 'Hello from Service Worker! (data)' }), {
-                        headers: { 'Content-Type': 'application/json' }
-                    })
-                );
+            // Get all customers
+            if (apiPath === 'customers' && method === 'GET') {
+                return event.respondWith(handleGetAllCustomers());
             }
-             // GET /api/users
-            else if (apiPath === 'users' && method === 'GET') {
-               return event.respondWith(
-                    new Response(JSON.stringify([{ id: 1, name: 'John Doe' }, { id: 2, name: 'Jane Doe' }]), {
-                        headers: { 'Content-Type': 'application/json' }
-                    })
-                );
+
+            // Get specific customer
+            if (apiPath.match(/^customers\/[^/]+$/) && method === 'GET') {
+                const customerId = apiPath.split('/')[1];
+                return event.respondWith(handleGetCustomer(customerId));
             }
-            // POST /api/customers
-            else if (apiPath === 'customers' && method === 'POST') {
-                return event.respondWith(handleCreateCustomer(event.request));
-            // GET /api/customers (all customers)
-            }else if (apiPath === 'customers' && method === 'GET') {  //Handles get all customers
-              return  event.respondWith(handleGetAllCustomers());
-            }
-            // POST /api/customers/:customerId/quotes  <-- ADD THIS!
-            else if (apiPath.startsWith('customers/') && apiPath.includes('/quotes') && method === 'POST') {
-                const customerId = apiPath.split('/')[1]; // Extract customerId
+
+            // POST /customers/:customerId/quotes
+            if (apiPath.match(/^customers\/[^/]+\/quotes$/) && method === 'POST') {
+                const [, customerId] = apiPath.split('/');
                 return event.respondWith(handleStartQuote(customerId, event.request));
             }
-           // GET /api/customers/:customerId
-            else if (apiPath.startsWith('customers/') && method === 'GET') {
-                const customerId = apiPath.split('/')[1]; // Get customer ID
-               return event.respondWith(handleGetCustomer(customerId));
+
+            // PUT /customers/:customerId/quotes/:quoteId
+            if (apiPath.match(/^customers\/[^/]+\/quotes\/[^/]+$/) && method === 'PUT') {
+                const [, customerId, , quoteId] = apiPath.split('/');
+                return event.respondWith(handleUpdateQuote(customerId, quoteId, event.request));
             }
-            // POST and GET /api/messages
-           else if (apiPath === 'messages' && method === 'POST') { // Handles POST and GET all messages
+
+            // POST /customers/:customerId/quotes/:quoteId/calculate
+            if (apiPath.match(/^customers\/[^/]+\/quotes\/[^/]+\/calculate$/) && method === 'POST') {
+                const parts = apiPath.split('/');
+                return event.respondWith(handleCalculatePremium(parts[1], parts[3]));
+            }
+
+            // POST /customers/:customerId/quotes/:quoteId/accept
+            if (apiPath.match(/^customers\/[^/]+\/quotes\/[^/]+\/accept$/) && method === 'POST') {
+                const parts = apiPath.split('/');
+                return event.respondWith(handleAcceptQuote(parts[1], parts[3], event.request));
+            }
+
+            // GET /customers/:customerId/policies/:policyId
+            if (apiPath.match(/^customers\/[^/]+\/policies\/[^/]+$/) && method === 'GET') {
+                const parts = apiPath.split('/');
+                return event.respondWith(handleGetPolicy(parts[1], parts[3]));
+            }
+
+            // POST /customers/:customerId/claims
+            if (apiPath.match(/^customers\/[^/]+\/claims$/) && method === 'POST') {
+                const [, customerId] = apiPath.split('/');
+                return event.respondWith(handleFileClaim(customerId, event.request));
+            }
+
+            // GET /customers/:customerId/claims/:claimId
+            if (apiPath.match(/^customers\/[^/]+\/claims\/[^/]+$/) && method === 'GET') {
+                const [, customerId, , claimId] = apiPath.split('/');
+                return event.respondWith(handleGetClaim(customerId, claimId));
+            }
+
+            // GET /customers/:customerId/policies/:policyId/renewal
+            if (apiPath.match(/^customers\/[^/]+\/policies\/[^/]+\/renewal$/) && method === 'GET') {
+                const [, customerId, , policyId] = apiPath.split('/');
+                return event.respondWith(handleGetRenewalInfo(customerId, policyId));
+            }
+
+            // POST /customers/:customerId/policies/:policyId/renew
+            if (apiPath.match(/^customers\/[^/]+\/policies\/[^/]+\/renew$/) && method === 'POST') {
+                const [, customerId, , policyId] = apiPath.split('/');
+                return event.respondWith(handleRenewPolicy(customerId, policyId, event.request));
+            }
+
+            // Messages
+            if (apiPath === 'messages' && method === 'POST') {
                 return event.respondWith(handlePostMessage(event.request));
             }
-             else if (apiPath === 'messages' && method === 'GET'){
+
+            if (apiPath === 'messages' && method === 'GET') {
                 return event.respondWith(handleGetAllMessages());
             }
-           // GET /api/search?terms=...
-            else if (apiPath.startsWith('search') && method === 'GET') {
+
+            // Search
+            if (apiPath.startsWith('search') && method === 'GET') {
                 const urlParams = new URLSearchParams(requestUrl.search);
                 const terms = urlParams.get('terms');
                 return event.respondWith(handleSearchMessages(terms));
             }
-            else {
-                console.log('Service Worker: Passing request to network (API endpoint not found):', event.request.url);
-                return event.respondWith(fetch(event.request));
-            }
 
-        } else {
-            // Request for a non-API resource (e.g., HTML, CSS, JS files)
-            console.log('Service Worker: Passing request to network (Non-API request):', event.request.url);
-            event.respondWith(fetch(event.request));
+            // If nothing matched
+            console.log('Service Worker: API endpoint not found, passing to network:', requestUrl.pathname);
+            return event.respondWith(fetch(event.request));
         }
+
+        // Other static assets (HTML, CSS, JS, images)
+        console.log('Service Worker: Static asset or unknown path, passing to network:', requestUrl.pathname);
+        event.respondWith(fetch(event.request));
     } else {
-        // Request is not within the base path
-        console.log('Service Worker: Passing request to network (not in base path):', event.request.url);
+        // Outside of service worker base path
         event.respondWith(fetch(event.request));
     }
 });
+
 
 self.addEventListener('activate', async function(event) {
     console.log('Service Worker activating.');
