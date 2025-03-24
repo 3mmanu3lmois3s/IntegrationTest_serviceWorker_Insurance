@@ -2,10 +2,6 @@
 /*jshint esversion: 6 */
 /*jshint worker: true */
 const basePath = '/IntegrationTest_serviceWorker_Insurance/'; // Corrected base path
-
-// sw.js
-/*jshint esversion: 6 */
-/*jshint worker: true */
 const dbName = 'insuranceDB';
 const customerStoreName = 'customers';
 const messageStoreName = 'messages';
@@ -274,50 +270,14 @@ async function getAllMessagesFromDB() {
 
 // --- Event Listeners ---
 
+// --- Event Listeners ---
+
 self.addEventListener('install', function(event) {
     console.log('Service Worker installing.');
     event.waitUntil(self.skipWaiting());
 });
 
-self.addEventListener('activate', async function(event) { // Add async
-    console.log('Service Worker activating.');
-    event.waitUntil(
-        (async () => { // Wrap in an async IIFE
-            await openDB(); // AWAIT openDB()
-            await clients.claim(); // Now safe to claim clients
-            testHttpMethods(); // And run tests (though fetch listener isn't set up yet, so these will likely still fail).
-        })()
-    );
-});
-
-async function testHttpMethods() {
-    const testUrls = [
-        { url: `${basePath}test/get`, method: 'GET' },
-        { url: `${basePath}test/post`, method: 'POST', body: JSON.stringify({ test: 'data' }) },
-        { url: `${basePath}test/put`, method: 'PUT', body: JSON.stringify({ test: 'data' }) },
-        { url: `${basePath}test/delete`, method: 'DELETE' },
-    ];
-
-    for (const { url, method, body } of testUrls) {
-        try {
-            const request = new Request(url, {
-                method: method,
-                headers: { 'Content-Type': 'application/json' },
-                body: body
-            });
-
-            const response = await self.fetch(request); // Fetch *from itself*!
-            console.log(`Service Worker self-test: ${method} ${url} - Status: ${response.status}`);
-            if (!response.ok) {
-                console.error(`  Error: ${await response.text()}`);
-            }
-        } catch (error) {
-            console.error(`Service Worker self-test: ${method} ${url} - FAILED`, error);
-        }
-    }
-}
-
-
+// --- Fetch Event Listener (BEFORE activate) ---
 self.addEventListener('fetch', (event) => {
     const requestUrl = new URL(event.request.url);
 
@@ -373,7 +333,7 @@ self.addEventListener('fetch', (event) => {
                     break;
                 case 'customers':  //Handles get all customers
                     if (method === 'GET'){
-                      event.respondWith(handleGetAllCustomers());
+                     event.respondWith(handleGetAllCustomers());
                     }
                     break;
                 case 'messages': // Handles POST and GET all messages
@@ -385,12 +345,12 @@ self.addEventListener('fetch', (event) => {
                    break;
                 default:
                     if (apiPath.startsWith('user/') && method === 'GET') {
-                      const userId = apiPath.substring('user/'.length);
-                      event.respondWith(
-                          new Response(JSON.stringify({ id: userId, name: 'User ' + userId }), {
-                              headers: { 'Content-Type': 'application/json' }
-                          })
-                      );
+                        const userId = apiPath.substring('user/'.length);
+                        event.respondWith(
+                            new Response(JSON.stringify({ id: userId, name: 'User ' + userId }), {
+                                headers: { 'Content-Type': 'application/json' }
+                            })
+                        );
                     }
                     else if (apiPath.startsWith('customers/') && method === 'GET') {
                         const customerId = apiPath.split('/')[1]; // Get customer ID
@@ -417,6 +377,16 @@ self.addEventListener('fetch', (event) => {
     }
 });
 
+self.addEventListener('activate', async function(event) {
+    console.log('Service Worker activating.');
+    event.waitUntil(
+        (async () => {
+            await openDB();
+            await clients.claim();
+            testHttpMethods(); //  Run tests *after* activation and DB.
+        })()
+    );
+});
 
 // NEW (INDEXEDDB) VERSION - USE THIS
 
