@@ -432,32 +432,10 @@ async function addCustomerToDB(customerData) {
     });
 
 }
-async function handleGetCustomer(customerId) {
-    try {
-        const customer = await getCustomerFromDB(customerId);
-
-        if (customer) {
-            return new Response(JSON.stringify(customer), {
-                headers: { 'Content-Type': 'application/json' }
-            });
-        } else {
-            return new Response(JSON.stringify({ error: 'Customer not found' }), {
-                status: 404,
-                headers: { 'Content-Type': 'application/json' }
-            });
-        }
-    } catch (error) {
-        console.error('Service Worker: Error in handleGetCustomer:', error);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
-    }
-}
 
 async function handleGetAllCustomers() {
     try {
-        const customers = await getAllCustomersFromDB();
+        const customers = await getAllCustomersFromDB(); // Use the IndexedDB helper
         return new Response(JSON.stringify(customers), {
             headers: { 'Content-Type': 'application/json' }
         });
@@ -470,65 +448,7 @@ async function handleGetAllCustomers() {
     }
 }
 
-async function handlePostMessage(request) {
-  try {
-    const messageText = await request.text(); // Get raw text first
-    const messageData = JSON.parse(messageText); // THEN parse
-    const currentSize = await calculateTotalSize();
-    if (currentSize + messageText.length > 3000) {
-      return new Response(JSON.stringify({ error: 'Adding this message would exceed the 3000 character limit.' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    const messageId = await addMessageToDB(messageData);
-    return new Response(JSON.stringify({ messageId }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    console.error('Service Worker: Error in handlePostMessage:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 400, // Or appropriate error code
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-
-// New handler function to retrieve all messages
-async function handleGetAllMessages() {
-    try {
-        const messages = await getAllMessagesFromDB();
-        return new Response(JSON.stringify(messages), {
-            headers: { 'Content-Type': 'application/json' }
-        });
-    } catch (error) {
-        console.error('Service Worker: Error in handleGetAllMessages:', error);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
-    }
-}
-
-async function handleSearchMessages(terms) {
-  try {
-    const results = await searchData(terms);
-    return new Response(JSON.stringify(results), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    console.error('Service Worker: Error in handleSearchMessages:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-
-
-//Added to manage the logic of the fake API
-async function handleGetProducts(){
+async function handleGetProducts() {
     const products = [
         { id: 'prod-1', name: 'Basic Insurance', description: 'Covers basic needs.' },
         { id: 'prod-2', name: 'Premium Insurance', description: 'Covers everything!' },
@@ -538,25 +458,57 @@ async function handleGetProducts(){
     });
 }
 
+// --- Helper Functions (Including handleStartQuote) ---
+async function handleStartQuote(customerId, request) {
+    try {
+      const body = await request.json();
+      const { productId } = body; // Destructure for clarity
 
-async function handleStartQuote(customerId, request){
-    console.log(customerId);
-     const body = await request.json();
-     console.log(body)
-    if (!db.customers[customerId]) {
-        throw new Error("Customer not found");
-    }
-    const quoteId = `quote${nextQuoteId++}`;
-    db.quotes[quoteId] = {
+      if (!productId) {
+        return new Response(JSON.stringify({ error: 'Product ID is required to start a quote.' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      const quoteId = `quote-${Date.now()}`;
+      const quoteData = {
         quoteId,
         customerId,
-        productId: body.productId, //From the request
-        status: 'draft',
-        details: {} // Initial details are empty
-    };
-    return new Response(JSON.stringify({ quoteId }), {
+        productId,
+        status: 'pending',
+        // Add other initial quote data here (e.g., timestamp)
+      };
+
+      // Store the quote in IndexedDB
+      const db = await openDB();
+      const transaction = db.transaction([quotesStoreName], 'readwrite');
+      const store = transaction.objectStore(quotesStoreName);
+      const addRequest = store.add(quoteData);
+
+      return new Promise((resolve, reject) => {
+        addRequest.onsuccess = () => {
+          resolve(new Response(JSON.stringify({ quoteId }), {
+            headers: { 'Content-Type': 'application/json' }
+          }));
+        };
+
+        addRequest.onerror = (event) => {
+          console.error("Error adding quote to IndexedDB:", event.target.error);
+          reject(new Response(JSON.stringify({ error: 'Failed to start quote.' }), {
+            status: 500, // Internal Server Error
+            headers: { 'Content-Type': 'application/json' }
+          }));
+        };
+      });
+
+    } catch (error) {
+      console.error('Error in handleStartQuote:', error);
+      return new Response(JSON.stringify({ error: 'Failed to start quote: ' + error.message }), {
+        status: 400, // Bad Request (if, e.g., JSON parsing fails)
         headers: { 'Content-Type': 'application/json' }
-    });
+      });
+    }
 }
 
 async function handleUpdateQuote(customerId, quoteId, request){
@@ -675,7 +627,7 @@ async function handleGetRenewalInfo(customerId, policyId){
     }
 
     const policy = db.policies[policyId];
-    // Check if the policy is near its end date (e.g., within 30 days)
+     // Check if the policy is near its end date (e.g., within 30 days)
     const endDate = new Date(policy.endDate);
     const now = new Date();
     const diffTime = endDate.getTime() - now.getTime();
@@ -683,7 +635,7 @@ async function handleGetRenewalInfo(customerId, policyId){
 
     let renewalInfo = {};
     if(diffDays <= 30){
-        const newPremium = Math.floor(Math.random() * 1000) + 500; // Random
+         const newPremium = Math.floor(Math.random() * 1000) + 500; // Random
         renewalInfo = {
             policyId: policyId,
             newStartDate: endDate.toISOString(),
@@ -694,7 +646,7 @@ async function handleGetRenewalInfo(customerId, policyId){
     } else {
         renewalInfo = {status: 'not_available'}
     }
-     return new Response(JSON.stringify(renewalInfo), {
+      return new Response(JSON.stringify(renewalInfo), {
         headers: { 'Content-Type': 'application/json' }
     });
 }
@@ -706,8 +658,8 @@ async function handleRenewPolicy(customerId, policyId, request){
     if (!db.policies[policyId]) {
         throw new Error("Policy not found");
     }
-    const policy = db.policies[policyId];
-    // Check if the policy is near its end date (e.g., within 30 days)
+     const policy = db.policies[policyId];
+     // Check if the policy is near its end date (e.g., within 30 days)
     const endDate = new Date(policy.endDate);
     const now = new Date();
     const diffTime = endDate.getTime() - now.getTime();
@@ -716,7 +668,7 @@ async function handleRenewPolicy(customerId, policyId, request){
     if(diffDays > 30){
         throw new Error("Policy is not renewable yet");
     }
-    //Update policy
+     //Update policy
     policy.startDate = endDate.toISOString();
     policy.endDate = new Date(new Date(endDate).setFullYear(endDate.getFullYear() + 1)).toISOString(); // One year later
 
