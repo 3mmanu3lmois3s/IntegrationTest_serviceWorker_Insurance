@@ -3,7 +3,7 @@ let newWorker;
 const basePath = '/IntegrationTest_serviceWorker_Insurance/'; // ADD TRAILING SLASH
 
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register(basePath + 'sw.js')
+    navigator.serviceWorker.register(basePath + 'sw.js')  // basePath already includes the /
         .then(registration => {
             console.log('Service Worker registered with scope:', registration.scope);
             if (registration.waiting) {
@@ -40,11 +40,13 @@ function initializeProgressIndicators() {
     }
 }
 
-// --- Event Listener for the Buttons (Centralized) ---
+
+// --- Event Listener para los Botones (Centralizado) ---
 document.addEventListener('DOMContentLoaded', () => {
     initializeProgressIndicators();
     // Load completed steps from localStorage
     loadProgress();
+
 
     document.addEventListener('click', async function(event) {
         if (event.target.matches('button[data-api-url]')) {
@@ -57,26 +59,37 @@ document.addEventListener('DOMContentLoaded', () => {
             let isValidRequest = true;
             let missingData = "";
 
-            // Only check for customerId if the step REQUIRES it.
-            // Step 0 (Create Customer) and 1 (Get Products) don't need customerId.
-            if (step > 1 && typeof customerId === 'undefined') {
+            // Only check for customerId if the step REQUIRES it
+            if (step !== 1 && step > 0 && typeof customerId === 'undefined') { // Exclude Step 1 (Get Products and Create Customer)
                 missingData += "customerId ";
                 isValidRequest = false;
             }
-
-            // Don't check for quoteId, policyId, or claimId *before* the request that creates them.
-            // We'll handle missing IDs *after* a failed request, if necessary.
-
-            if (!isValidRequest) {
-                displayResponse(`Error: Missing data: ${missingData} to perform this request.`);
-                return;
+            // FIX: Only check for quoteId AFTER step 2.
+            if ((step > 2 && step != 6 && step < 10) && typeof quoteId === 'undefined') {
+                missingData += "quoteId ";
+                isValidRequest = false;
+            }
+            if ((step > 5 && step != 8) && typeof policyId === 'undefined') {
+               missingData += "policyId ";
+               isValidRequest = false;
             }
 
-            // Replace placeholders with actual values, handling undefined values.
-            apiUrl = apiUrl.replace(':customerId:', customerId || '');
-            apiUrl = apiUrl.replace(':quoteId:', quoteId || '');
-            apiUrl = apiUrl.replace(':policyId:', policyId || '');
-            apiUrl = apiUrl.replace(':claimId:', claimId || '');
+            if (step == 8 && typeof claimId === 'undefined') {
+                missingData += "claimId ";
+                isValidRequest = false;
+
+            }
+
+            if (!isValidRequest) {
+                document.getElementById('response').textContent = `Error: Missing data: ${missingData} to perform this request.`;
+                return;
+            }
+            // ... rest of the fetch logic (no changes needed here) ...
+             // Replace placeholders with actual values
+            apiUrl = apiUrl.replace(':customerId:', customerId);
+            apiUrl = apiUrl.replace(':quoteId:', quoteId);
+            apiUrl = apiUrl.replace(':policyId:', policyId);
+            apiUrl = apiUrl.replace(':claimId:', claimId)
 
             //Conditional body
             let bodyData = null;
@@ -86,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         bodyData = { name: 'Test Customer', email: 'test@example.com', address: '123 Main St' };
                         break;
                     case 2: //Start a Quote
-                        bodyData = {productId: "prod-1"} // Use a valid product ID from Get Products
+                        bodyData = {productId: "home-insurance"}
                         break;
                     case 3: //Update Quote
                         bodyData = {address: 'Fake st 123', city: 'Springfield'}
@@ -106,31 +119,33 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                const fullUrl = basePath + apiUrl;  // Construct the full URL
-                const response = await fetchData(fullUrl, method, bodyData);
+                const response = await fetchData(basePath + apiUrl, method, bodyData); //Add basepath here
+                // Removed setting response here.  Handled in fetchData.
+                // document.getElementById('response').textContent = JSON.stringify(response, null, 2);
 
-                // Update variables *only if* the response contains them.
-                if (response) {
-                    customerId = response.customerId || customerId;
-                    quoteId = response.quoteId || quoteId;
-                    policyId = response.policyId || policyId;
-                    claimId = response.claimId || claimId;
-                }
+                    //Update variables if I get them from response
+                customerId = response.customerId || customerId;
+                quoteId = response.quoteId || quoteId;
+                policyId = response.policyId || policyId;
+                claimId = response.claimId || claimId;
 
                 // Mark step as complete
                 markStepComplete(step);
 
             } catch (error) {
-               // Error is handled in fetchData
+              // Error handling is now *inside* fetchData, so this is less likely to be hit.
+              //  But, it's still good to have a top-level catch.
+                console.error("Top-level error:", error); // Log for debugging
+                displayResponse(`Error: ${error.message}`); // Show a user-friendly message
+
             }
+
         }
-        else if (event.target.id === 'updateSW' && newWorker) {
+       else if (event.target.id === 'updateSW' && newWorker) {
             newWorker.postMessage({ action: 'skipWaiting' });
         }
     });
 });
-
-
 
 async function fetchData(url, method = 'GET', bodyData = null) {
     const options = {
@@ -148,34 +163,29 @@ async function fetchData(url, method = 'GET', bodyData = null) {
         let errorText = `HTTP error! Status: ${response.status}`;
         try {
             // Try to get more detailed error information from the response body
-            const errorData = await response.json();
+            const errorData = await response.json(); // Could fail if body isn't JSON
             errorText += `\nError: ${errorData.error || JSON.stringify(errorData)}`;
         } catch (e) {
             // If we couldn't parse the error as JSON, use the raw text
             errorText += `\nError: ${await response.text()}`;
         }
-        displayResponse(errorText);
-        throw new Error(errorText); // Re-throw to be caught by the outer try...catch (if needed)
+        displayResponse(errorText); //Update the display.
+        throw new Error(errorText); // Re-throw to be caught by the outer try...catch
     }
 
-    // Try to parse JSON, but handle cases where there's no response body.
+    // *Now* it's safe to parse as JSON (if the response is OK)
     try {
-        const data = await response.json();
-        displayResponse(JSON.stringify(data, null, 2)); // Pretty-print
-        return data;
+      const data = await response.json();
+      displayResponse(JSON.stringify(data, null, 2)); // Pretty-print the JSON
+      return data; // Return the parsed data for further use
+
     } catch (error) {
-        // If it's not JSON, it might be a successful response with no body (e.g., a 204 No Content).
-        //  In that case, don't treat it as an error.  Just return null (or an empty object)
-        if (response.status === 204) {
-            displayResponse("Success (No Content)"); // Indicate success
-            return null; // Or return {};  Depends on what you expect.
-        } else {
-            // If it's some other status and not JSON, it's an error.
-            console.error("JSON parsing error:", error);
-            displayResponse("Error: Invalid JSON response from server.");
-            throw error; // Re-throw for consistency
-        }
+        // Catch JSON parsing errors (like the "Unexpected end of JSON input")
+        console.error("JSON parsing error:", error); // For debugging
+        displayResponse("Error: Invalid JSON response from server.");
+        throw error; // Re-throw to be caught by the caller.  Important!
     }
+
 }
 
 
@@ -220,7 +230,9 @@ function loadProgress() {
         document.getElementById('indicator-' + step).classList.add('complete');
     });
 }
+
+// Add the displayResponse function (if you haven't already)
 function displayResponse(message) {
-    const responseDiv = document.getElementById('response');
-    responseDiv.textContent = message;
+    const responseDiv = document.getElementById('response');
+    responseDiv.textContent = message;
 }
