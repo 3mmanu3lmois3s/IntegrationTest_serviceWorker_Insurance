@@ -285,91 +285,69 @@ self.addEventListener('fetch', (event) => {
         const relativePath = requestUrl.pathname.substring(basePath.length);
         const method = event.request.method;
 
-        // Handle /products route (outside of /api)
-        if (relativePath === 'products' && method === 'GET') {
-            return event.respondWith(handleGetProducts());
-        }
-
-        // Handle test routes (outside of /api)
-        if (relativePath.startsWith('test/')) {
-            if (relativePath === 'test/get' && method === 'GET') {
-                return event.respondWith(new Response(JSON.stringify({ message: 'GET test successful' })));
-            } else if (relativePath === 'test/post' && method === 'POST') {
-                return event.respondWith(new Response(JSON.stringify({ message: 'POST test successful' })));
-            } else if (relativePath === 'test/put' && method === 'PUT') {
-                return event.respondWith(new Response(JSON.stringify({ message: 'PUT test successful' })));
-            } else if (relativePath === 'test/delete' && method === 'DELETE') {
-                return event.respondWith(new Response(JSON.stringify({ message: 'DELETE test successful' })));
-            }
-        }
-
-
+        // Handle API requests
         if (relativePath.startsWith('api/')) {
             const apiPath = relativePath.substring(4); // Remove 'api/'
 
-            // Correctly handle /api/data POST *before* the switch
-            if (relativePath === 'api/data' && method === 'POST') {
-                return event.respondWith(handleCreateCustomer(event.request));
+            // Test routes (handle them BEFORE the other routes)
+            if (relativePath.startsWith('test/')) {
+                if (relativePath === 'test/get' && method === 'GET') {
+                    return event.respondWith(new Response(JSON.stringify({ message: 'GET test successful' }), { headers: { 'Content-Type': 'application/json' } }));
+                } else if (relativePath === 'test/post' && method === 'POST') {
+                    return event.respondWith(new Response(JSON.stringify({ message: 'POST test successful' }), { headers: { 'Content-Type': 'application/json' } }));
+                } else if (relativePath === 'test/put' && method === 'PUT') {
+                    return event.respondWith(new Response(JSON.stringify({ message: 'PUT test successful' }), { headers: { 'Content-Type': 'application/json' } }));
+                } else if (relativePath === 'test/delete' && method === 'DELETE') {
+                    return event.respondWith(new Response(JSON.stringify({ message: 'DELETE test successful' }), { headers: { 'Content-Type': 'application/json' } }));
+                }
             }
 
-            switch (apiPath) {
-                case 'data': // Now only handles GET
-                    if (method === 'GET') {
-                        event.respondWith(
-                            new Response(JSON.stringify({ message: 'Hello from Service Worker! (data)' }), {
-                                headers: { 'Content-Type': 'application/json' }
-                            })
-                        );
-                    }
-                    break;
-                case 'users':
-                    if (method === 'GET') {
-                        event.respondWith(
-                            new Response(JSON.stringify([{ id: 1, name: 'John Doe' }, { id: 2, name: 'Jane Doe' }]), {
-                                headers: { 'Content-Type': 'application/json' }
-                            })
-                        );
-                    }
-                    break;
-                case 'customers':  //Handles get all customers
-                    if (method === 'GET'){
-                     event.respondWith(handleGetAllCustomers());
-                    }
-                    break;
-                case 'messages': // Handles POST and GET all messages
-                   if(method === 'POST'){
-                    event.respondWith(handlePostMessage(event.request));
-                   } else if (method === 'GET'){
-                    event.respondWith(handleGetAllMessages());
-                   }
-                   break;
-                default:
-                    if (apiPath.startsWith('user/') && method === 'GET') {
-                        const userId = apiPath.substring('user/'.length);
-                        event.respondWith(
-                            new Response(JSON.stringify({ id: userId, name: 'User ' + userId }), {
-                                headers: { 'Content-Type': 'application/json' }
-                            })
-                        );
-                    }
-                    else if (apiPath.startsWith('customers/') && method === 'GET') {
-                        const customerId = apiPath.split('/')[1]; // Get customer ID
-                        event.respondWith(handleGetCustomer(customerId));
-                    }
-                    else if (apiPath.startsWith('search') && method === 'GET') {
-                        const urlParams = new URLSearchParams(requestUrl.search);
-                        const terms = urlParams.get('terms');
-                        event.respondWith(handleSearchMessages(terms));
-                    } else {
-                        console.log('Service Worker: Passing request to network (API endpoint not found):', event.request.url);
-                        event.respondWith(fetch(event.request));
-                    }
+
+            if (apiPath === 'data' && method === 'GET') {
+                event.respondWith(
+                    new Response(JSON.stringify({ message: 'Hello from Service Worker! (data)' }), {
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                );
+           } else if (apiPath === 'users' && method === 'GET') {
+                event.respondWith(
+                    new Response(JSON.stringify([{ id: 1, name: 'John Doe' }, { id: 2, name: 'Jane Doe' }]), {
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                );
+           }
+            else if (apiPath === 'customers' && method === 'POST') {
+                event.respondWith(handleCreateCustomer(event.request));
+            } else if (apiPath === 'customers' && method === 'GET') {
+                event.respondWith(handleGetAllCustomers());
+            // Handle Start Quote: /api/customers/:customerId/quotes (POST)
+            }else if (apiPath.startsWith('customers/') && apiPath.includes('/quotes') && method === 'POST'){
+                const customerId = apiPath.split('/')[1]; // Extract customerId
+                event.respondWith(handleStartQuote(customerId, event.request));
+            } else if (apiPath.startsWith('customers/') && method === 'GET') {
+                const customerId = apiPath.split('/')[1];
+                event.respondWith(handleGetCustomer(customerId));
+            } else if (apiPath === 'messages' && method === 'POST') {
+              event.respondWith(handlePostMessage(event.request));
             }
-        } else {
+             else if (apiPath === 'messages' && method === 'GET'){
+                event.respondWith(handleGetAllMessages());
+            }
+             else if (apiPath.startsWith('search') && method === 'GET') {
+                const urlParams = new URLSearchParams(requestUrl.search);
+                const terms = urlParams.get('terms');
+                event.respondWith(handleSearchMessages(terms));
+            } else {
+                // Request for an API endpoint that's not handled
+                console.log('Service Worker: Passing request to network (API endpoint not found):', event.request.url);
+                event.respondWith(fetch(event.request));  // Pass to network
+            }
+       }else {
             // Request for a non-API resource (e.g., HTML, CSS, JS files)
             console.log('Service Worker: Passing request to network (Non-API request):', event.request.url);
             event.respondWith(fetch(event.request));
         }
+
     } else {
         // Request is not within the base path
         console.log('Service Worker: Passing request to network (not in base path):', event.request.url);

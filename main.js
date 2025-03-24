@@ -162,30 +162,39 @@ async function fetchData(url, method = 'GET', bodyData = null) {
         // Handle HTTP errors (4xx or 5xx)
         let errorText = `HTTP error! Status: ${response.status}`;
         try {
-            // Try to get more detailed error information from the response body
-            const errorData = await response.json(); // Could fail if body isn't JSON
-            errorText += `\nError: ${errorData.error || JSON.stringify(errorData)}`;
+            // Try to get JSON error data, but ONLY if the content type is JSON
+            if (response.headers.get('Content-Type')?.includes('application/json')) {
+                const errorData = await response.json();
+                errorText += `\nError: ${errorData.error || JSON.stringify(errorData)}`;
+            } else {
+                // If it's not JSON, get the text
+                errorText += `\nError: ${await response.text()}`;
+            }
+
         } catch (e) {
-            // If we couldn't parse the error as JSON, use the raw text
-            errorText += `\nError: ${await response.text()}`;
+            // If we couldn't parse as JSON *or* text, just use the status
+            errorText += `\nCould not parse error response.`;
         }
-        displayResponse(errorText); //Update the display.
-        throw new Error(errorText); // Re-throw to be caught by the outer try...catch
+        displayResponse(errorText);
+        throw new Error(errorText);
     }
 
-    // *Now* it's safe to parse as JSON (if the response is OK)
+    // Handle 204 No Content (successful, but no body)
+    if (response.status === 204) {
+        displayResponse("Success (No Content)");
+        return null; // Or return {};  Depends on your needs
+    }
+
+    // If we get here, the response is OK and (presumably) has a JSON body
     try {
-      const data = await response.json();
-      displayResponse(JSON.stringify(data, null, 2)); // Pretty-print the JSON
-      return data; // Return the parsed data for further use
-
+        const data = await response.json();
+        displayResponse(JSON.stringify(data, null, 2));
+        return data;
     } catch (error) {
-        // Catch JSON parsing errors (like the "Unexpected end of JSON input")
-        console.error("JSON parsing error:", error); // For debugging
+        console.error("JSON parsing error:", error);
         displayResponse("Error: Invalid JSON response from server.");
-        throw error; // Re-throw to be caught by the caller.  Important!
+        throw error;
     }
-
 }
 
 
