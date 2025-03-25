@@ -123,7 +123,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Removed setting response here.  Handled in fetchData.
                 // document.getElementById('response').textContent = JSON.stringify(response, null, 2);
                 // Skip visual mark for debug-only steps
-                if (step <= 10) {
+                const visuallyTrackableSteps = [0,1,2,3,4,5,6,7,8,9,10,11];
+                if (visuallyTrackableSteps.includes(step)) {
                     markStepComplete(step);
                 }
                     //Update variables if I get them from response
@@ -162,33 +163,41 @@ async function fetchData(url, method = 'GET', bodyData = null) {
     const response = await fetch(url, options);
 
     if (!response.ok) {
-        // Handle HTTP errors (4xx or 5xx)
+        // ✅ Detectar caso especial: política no renovable (mensaje de negocio, no error técnico)
+        if (
+            response.status === 400 &&
+            response.headers.get('Content-Type')?.includes('application/json')
+        ) {
+            const errorData = await response.json();
+            if (errorData?.error === "Policy is not renewable yet") {
+                displayResponse(errorData.error); // Mostrar solo el mensaje
+                return errorData; // No lanzar error
+            }
+        }
+
+        // ❌ Manejo de errores general
         let errorText = `HTTP error! Status: ${response.status}`;
         try {
-            // Try to get JSON error data, but ONLY if the content type is JSON
             if (response.headers.get('Content-Type')?.includes('application/json')) {
                 const errorData = await response.json();
                 errorText += `\nError: ${errorData.error || JSON.stringify(errorData)}`;
             } else {
-                // If it's not JSON, get the text
                 errorText += `\nError: ${await response.text()}`;
             }
-
         } catch (e) {
-            // If we couldn't parse as JSON *or* text, just use the status
             errorText += `\nCould not parse error response.`;
         }
         displayResponse(errorText);
         throw new Error(errorText);
     }
 
-    // Handle 204 No Content (successful, but no body)
+    // ✅ Manejo de 204 No Content
     if (response.status === 204) {
         displayResponse("Success (No Content)");
-        return null; // Or return {};  Depends on your needs
+        return null;
     }
 
-    // If we get here, the response is OK and (presumably) has a JSON body
+    // ✅ Si es respuesta válida y con JSON
     try {
         const data = await response.json();
         displayResponse(JSON.stringify(data, null, 2));
@@ -199,6 +208,7 @@ async function fetchData(url, method = 'GET', bodyData = null) {
         throw error;
     }
 }
+
 
 
 function showUpdateButton() {
