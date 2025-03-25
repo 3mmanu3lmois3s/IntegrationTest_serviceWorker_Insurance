@@ -45,41 +45,31 @@
         }
 
 /* Botones flotantes Start y End */
-#flow-buttons {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    z-index: 9999;
+.flow-control {
+    margin: 0.5em;
+    padding: 0.5em 1em;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    font-size: 1em;
+    font-weight: bold;
+    color: white;
+    width: 120px;
 }
 
-#startFlow, #endFlow {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    font-weight: bold;
-    border: none;
-    color: white;
-    background-color: #007BFF;
-    font-size: 0.9em;
-    cursor: pointer;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    transition: background-color 0.3s ease;
+#startFlow {
+    background-color: #2196F3; /* Blue */
 }
 
 #endFlow {
-    background-color: #dc3545; /* Red */
+    background-color: #e53935; /* Red */
 }
 
-#startFlow:hover {
-    background-color: #0056b3;
+button.complete-step {
+    background-color: #b2fab4 !important; /* Light green for completed steps */
+    border: 1px solid #4caf50;
+    color: #000;
 }
-#endFlow:hover {
-    background-color: #a71d2a;
-}
-
 /* Mobile layout: center buttons at bottom */
 @media (max-width: 600px) {
     #flow-buttons {
@@ -140,6 +130,7 @@
         <button id="startFlow" title="Start Flow">⏺️ Start</button>
     </div>
     <div id="buttons">
+        <button id="startFlow" class="flow-control">🔵 Start</button><br>
         <button data-api-step="0" data-api-url="api/data" data-method="POST">1. Create Customer</button><br>
         <button data-api-step="1" data-api-url="products" data-method="GET">2. Get Products</button><br>
         <button data-api-step="2" data-api-url="api/customers/:customerId:/quotes" data-method="POST">3. Start Quote</button><br>
@@ -153,6 +144,7 @@
         <button data-api-step="10" data-api-url="api/customers/:customerId:/policies/:policyId:/renew" data-method="POST">11. Renew Policy</button><br>
         <button data-api-step="11" data-api-url="api/debug/policies" data-method="GET">🧪 Ver Policies</button><br>
         <button data-api-step="12" data-api-url="api/debug/claims" data-method="GET">🧪 Ver Claims</button><br>
+        <button id="endFlow" class="flow-control">🔴 End</button><br>
         
     </div>
 
@@ -160,11 +152,6 @@
     <pre id="response"></pre>
 
     <p>Status: <span id="status"></span></p>
-
-    <div id="flow-controls">
-        <button id="startFlow">Start</button>
-        <button id="endFlow">End</button>
-    </div>
 
     <footer>
         <div id="progress-indicators">

@@ -247,8 +247,11 @@ function markStepComplete(step) {
     const indicator = document.getElementById('indicator-' + step);
     if (indicator) {
         indicator.classList.add('complete');
-    } else {
-        console.warn(`No indicator found for step ${step}. Skipping visual mark.`);
+    }
+
+    const btn = document.querySelector(`button[data-api-step="${step}"]`);
+    if (btn) {
+        btn.classList.add('complete-step'); // << Estilo verde claro
     }
 
     let completedSteps = JSON.parse(localStorage.getItem('completedSteps') || '[]');
@@ -290,13 +293,19 @@ function resetProgress() {
     policyId = undefined;
     claimId = undefined;
 
-    // Quitar las clases visuales
     for (let i = 0; i < 13; i++) {
         const el = document.getElementById('indicator-' + i);
-        if (el) {
-            el.classList.remove('complete');
-        }
+        if (el) el.classList.remove('complete');
+
+        const btn = document.querySelector(`button[data-api-step="${i}"]`);
+        if (btn) btn.classList.remove('complete-step');
     }
+
+    lockButtons();
+    unlockButton(0);
+    displayResponse("Flow has been reset. Press 'Start' to begin.");
+}
+
 
     // Volver a bloquear todos los botones menos el primero
     lockButtons();
