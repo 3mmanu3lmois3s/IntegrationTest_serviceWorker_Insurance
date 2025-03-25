@@ -138,6 +138,7 @@ unlockButton(0); // Solo el paso 0 está habilitado
 
                 if (visuallyTrackableSteps.includes(step) && shouldMarkComplete) {
                     markStepComplete(step);
+                    button.classList.add("completed"); // <- Colorea el botón actual
                 }
                     //Update variables if I get them from response
                 customerId = response.customerId || customerId;
