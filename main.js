@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('startFlow').addEventListener('click', () => {
         resetProgress();
         flowStarted = true;
-        unlockButton(0);
+        unlockButton(0); // enable only first button
         displayResponse("Flow started. Begin with Step 1.");
     });
 
@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         flowStarted = false;
         displayResponse("Flow has been reset. Press 'Start' to begin.");
     });
+
 
     document.addEventListener('click', async function(event) {
         if (!flowStarted || !event.target.matches('button[data-api-url]')) return;
