@@ -1,4 +1,239 @@
 // main.js
+// main.js
+let newWorker;
+const basePath = '/IntegrationTest_serviceWorker_Insurance/';
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register(basePath + 'sw.js')
+        .then(registration => {
+            console.log('Service Worker registered with scope:', registration.scope);
+            if (registration.waiting) {
+                newWorker = registration.waiting;
+                showUpdateButton();
+            }
+            registration.addEventListener('updatefound', () => {
+                newWorker = registration.installing;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        showUpdateButton();
+                    }
+                });
+            });
+        })
+        .catch(error => {
+            console.log('Service Worker registration failed:', error);
+        });
+}
+
+let customerId, quoteId, policyId, claimId;
+
+document.addEventListener('DOMContentLoaded', () => {
+    lockButtons();
+    unlockButton(0); // Step 0 = Start
+
+    document.addEventListener('click', async function(event) {
+        const target = event.target;
+
+        if (target.matches('button[data-api-url]')) {
+            const button = target;
+            const step = parseInt(button.dataset.apiStep);
+            let apiUrl = button.dataset.apiUrl;
+            const method = button.dataset.method;
+
+            let isValidRequest = true;
+            let missingData = "";
+
+            if (step !== 1 && step > 0 && typeof customerId === 'undefined') {
+                missingData += "customerId ";
+                isValidRequest = false;
+            }
+            if ((step > 2 && step != 6 && step < 10) && typeof quoteId === 'undefined') {
+                missingData += "quoteId ";
+                isValidRequest = false;
+            }
+            if ((step > 5 && step != 8) && typeof policyId === 'undefined') {
+                missingData += "policyId ";
+                isValidRequest = false;
+            }
+            if (step == 8 && typeof claimId === 'undefined') {
+                missingData += "claimId ";
+                isValidRequest = false;
+            }
+
+            if (!isValidRequest) {
+                displayResponse(`Error: Missing data: ${missingData} to perform this request.`);
+                return;
+            }
+
+            apiUrl = apiUrl.replace(':customerId:', customerId)
+                           .replace(':quoteId:', quoteId)
+                           .replace(':policyId:', policyId)
+                           .replace(':claimId:', claimId);
+
+            let bodyData = null;
+            if (['POST', 'PUT'].includes(method)) {
+                switch(step) {
+                    case 0: bodyData = { name: 'Test Customer', email: 'test@example.com', address: '123 Main St' }; break;
+                    case 2: bodyData = { productId: "home-insurance" }; break;
+                    case 3: bodyData = { address: 'Fake st 123', city: 'Springfield' }; break;
+                    case 5: bodyData = {}; break;
+                    case 7: bodyData = { policyId: policyId, description: "Wind damage to roof" }; break;
+                    case 10: bodyData = {}; break;
+                    default: bodyData = {};
+                }
+            }
+
+            try {
+                const response = await fetchData(basePath + apiUrl, method, bodyData);
+
+                if (isStepValid(step + 1)) unlockButton(step + 1);
+
+                const validStep = response?.success === true || response?.error === "Policy is not renewable yet";
+                if (validStep) markStepComplete(step);
+
+                // Guardar IDs
+                customerId = response.customerId || customerId;
+                quoteId = response.quoteId || quoteId;
+                policyId = response.policyId || policyId;
+                claimId = response.claimId || claimId;
+
+            } catch (error) {
+                console.error("Top-level error:", error);
+                displayResponse(`Error: ${error.message}`);
+            }
+
+        } else if (target.id === 'startFlow') {
+            resetProgress();
+            unlockButton(0); // solo primer paso
+        } else if (target.id === 'endFlow') {
+            resetProgress();
+        } else if (target.id === 'updateSW' && newWorker) {
+            newWorker.postMessage({ action: 'skipWaiting' });
+        }
+    });
+
+    loadProgress();
+});
+
+// Fetch helper
+async function fetchData(url, method = 'GET', bodyData = null) {
+    const options = {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        ...(bodyData ? { body: JSON.stringify(bodyData) } : {})
+    };
+
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+        if (response.status === 400 && response.headers.get('Content-Type')?.includes('application/json')) {
+            const errorData = await response.json();
+            if (errorData?.error === "Policy is not renewable yet") {
+                displayResponse(errorData.error);
+                return errorData;
+            }
+        }
+
+        let errorText = `HTTP error! Status: ${response.status}`;
+        try {
+            if (response.headers.get('Content-Type')?.includes('application/json')) {
+                const errorData = await response.json();
+                errorText += `\nError: ${errorData.error || JSON.stringify(errorData)}`;
+            } else {
+                errorText += `\nError: ${await response.text()}`;
+            }
+        } catch {
+            errorText += `\nCould not parse error response.`;
+        }
+        displayResponse(errorText);
+        throw new Error(errorText);
+    }
+
+    if (response.status === 204) {
+        displayResponse("Success (No Content)");
+        return null;
+    }
+
+    try {
+        const data = await response.json();
+        displayResponse(JSON.stringify(data, null, 2));
+        return data;
+    } catch (error) {
+        console.error("JSON parsing error:", error);
+        displayResponse("Error: Invalid JSON response from server.");
+        throw error;
+    }
+}
+
+// UI Helpers
+function displayResponse(message) {
+    document.getElementById('response').textContent = message;
+}
+
+function markStepComplete(step) {
+    const indicator = document.getElementById('indicator-' + step);
+    const button = document.querySelector(`button[data-api-step="${step}"]`);
+
+    if (indicator) indicator.classList.add('complete');
+    if (button) button.classList.add('complete-step');
+
+    let completedSteps = JSON.parse(localStorage.getItem('completedSteps') || '[]');
+    completedSteps.push(step);
+    localStorage.setItem('completedSteps', JSON.stringify([...new Set(completedSteps)].sort((a, b) => a - b)));
+}
+
+function isStepValid(step) {
+    const completedSteps = JSON.parse(localStorage.getItem('completedSteps') || '[]');
+    return step === 0 || completedSteps.slice(0, step).length === step;
+}
+
+function loadProgress() {
+    const completedSteps = JSON.parse(localStorage.getItem('completedSteps') || '[]');
+    completedSteps.forEach(step => {
+        const indicator = document.getElementById('indicator-' + step);
+        const btn = document.querySelector(`button[data-api-step="${step}"]`);
+        if (indicator) indicator.classList.add('complete');
+        if (btn) btn.classList.add('complete-step');
+    });
+}
+
+function resetProgress() {
+    localStorage.removeItem('completedSteps');
+    customerId = quoteId = policyId = claimId = undefined;
+
+    for (let i = 0; i < 13; i++) {
+        const indicator = document.getElementById('indicator-' + i);
+        const btn = document.querySelector(`button[data-api-step="${i}"]`);
+        if (indicator) indicator.classList.remove('complete');
+        if (btn) btn.classList.remove('complete-step');
+    }
+
+    lockButtons();
+    unlockButton(0);
+    displayResponse("Flow has been reset. Press 'Start' to begin.");
+}
+
+function lockButtons() {
+    document.querySelectorAll('button[data-api-step]').forEach(btn => btn.disabled = true);
+}
+
+function unlockButton(step) {
+    const btn = document.querySelector(`button[data-api-step="${step}"]`);
+    if (btn) btn.disabled = false;
+}
+
+function showUpdateButton() {
+    document.getElementById('updateSW').style.display = 'block';
+}
+
+function updateOnlineStatus() {
+    document.getElementById('status').textContent = navigator.onLine ? 'Online' : 'Offline';
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
+
+/*
 let newWorker;
 const basePath = '/IntegrationTest_serviceWorker_Insurance/'; // ADD TRAILING SLASH
 
@@ -324,3 +559,4 @@ function unlockButton(step) {
     const btn = document.querySelector(`button[data-api-step="${step}"]`);
     if (btn) btn.disabled = false;
 }
+*/
