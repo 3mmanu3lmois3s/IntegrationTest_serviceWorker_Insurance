@@ -124,7 +124,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // document.getElementById('response').textContent = JSON.stringify(response, null, 2);
                 // Skip visual mark for debug-only steps
                 const visuallyTrackableSteps = [0,1,2,3,4,5,6,7,8,9,10,11];
-                if (visuallyTrackableSteps.includes(step)) {
+                // Marcar como completo también si es una respuesta válida de tipo "negocio", aunque tenga status 400
+                const shouldMarkComplete = response?.success === true || response?.error === "Policy is not renewable yet";
+
+                if (visuallyTrackableSteps.includes(step) && shouldMarkComplete) {
                     markStepComplete(step);
                 }
                     //Update variables if I get them from response
