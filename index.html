@@ -35,6 +35,63 @@
             background-color: #eee;
         }
 
+                #flow-controls {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+            display: flex;
+            gap: 1em;
+        }
+
+/* Botones flotantes Start y End */
+#flow-buttons {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 9999;
+}
+
+#startFlow, #endFlow {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    font-weight: bold;
+    border: none;
+    color: white;
+    background-color: #007BFF;
+    font-size: 0.9em;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    transition: background-color 0.3s ease;
+}
+
+#endFlow {
+    background-color: #dc3545; /* Red */
+}
+
+#startFlow:hover {
+    background-color: #0056b3;
+}
+#endFlow:hover {
+    background-color: #a71d2a;
+}
+
+/* Mobile layout: center buttons at bottom */
+@media (max-width: 600px) {
+    #flow-buttons {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        bottom: 30px;
+        flex-direction: row;
+    }
+}
+
+
         pre {
             border: 1px solid #ccc;
             padding: 1em;
@@ -79,7 +136,9 @@
 </head>
 <body>
     <h1>Service Worker Insurance API Demo</h1>
-
+    <div style="text-align: center; margin: 1em;">
+        <button id="startFlow" title="Start Flow">⏺️ Start</button>
+    </div>
     <div id="buttons">
         <button data-api-step="0" data-api-url="api/data" data-method="POST">1. Create Customer</button><br>
         <button data-api-step="1" data-api-url="products" data-method="GET">2. Get Products</button><br>
@@ -101,6 +160,11 @@
     <pre id="response"></pre>
 
     <p>Status: <span id="status"></span></p>
+
+    <div id="flow-controls">
+        <button id="startFlow">Start</button>
+        <button id="endFlow">End</button>
+    </div>
 
     <footer>
         <div id="progress-indicators">

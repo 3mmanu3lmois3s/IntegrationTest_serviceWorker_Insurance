@@ -42,7 +42,11 @@ function initializeProgressIndicators() {
 
 
 // --- Event Listener para los Botones (Centralizado) ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {      
+
+    lockButtons(); // Iniciar bloqueado
+unlockButton(0); // Solo el paso 0 está habilitado
+
     initializeProgressIndicators();
     // Load completed steps from localStorage
     loadProgress();
@@ -123,6 +127,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Removed setting response here.  Handled in fetchData.
                 // document.getElementById('response').textContent = JSON.stringify(response, null, 2);
                 // Skip visual mark for debug-only steps
+
+                if (isStepValid(step + 1)) {
+                    unlockButton(step + 1);
+                }
+
                 const visuallyTrackableSteps = [0,1,2,3,4,5,6,7,8,9,10,11];
                 // Marcar como completo también si es una respuesta válida de tipo "negocio", aunque tenga status 400
                 const shouldMarkComplete = response?.success === true || response?.error === "Policy is not renewable yet";
@@ -135,9 +144,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 quoteId = response.quoteId || quoteId;
                 policyId = response.policyId || policyId;
                 claimId = response.claimId || claimId;
-
-                // Mark step as complete
-                markStepComplete(step);
 
             } catch (error) {
               // Error handling is now *inside* fetchData, so this is less likely to be hit.
@@ -152,6 +158,16 @@ document.addEventListener('DOMContentLoaded', () => {
             newWorker.postMessage({ action: 'skipWaiting' });
         }
     });
+
+    document.getElementById('startFlow').addEventListener('click', () => {
+        resetProgress();
+        unlockButton(0);
+    });
+    
+    document.getElementById('endFlow').addEventListener('click', () => {
+        resetProgress();
+    });
+    
 });
 
 async function fetchData(url, method = 'GET', bodyData = null) {
@@ -265,4 +281,36 @@ function loadProgress() {
 function displayResponse(message) {
     const responseDiv = document.getElementById('response');
     responseDiv.textContent = message;
+}
+
+function resetProgress() {
+    localStorage.removeItem('completedSteps');
+    customerId = undefined;
+    quoteId = undefined;
+    policyId = undefined;
+    claimId = undefined;
+
+    // Quitar las clases visuales
+    for (let i = 0; i < 13; i++) {
+        const el = document.getElementById('indicator-' + i);
+        if (el) {
+            el.classList.remove('complete');
+        }
+    }
+
+    // Volver a bloquear todos los botones menos el primero
+    lockButtons();
+    unlockButton(0);
+
+    displayResponse("Flow has been reset. Press 'Start' to begin.");
+}
+
+function lockButtons() {
+    const buttons = document.querySelectorAll('button[data-api-step]');
+    buttons.forEach(btn => btn.disabled = true);
+}
+
+function unlockButton(step) {
+    const btn = document.querySelector(`button[data-api-step="${step}"]`);
+    if (btn) btn.disabled = false;
 }
