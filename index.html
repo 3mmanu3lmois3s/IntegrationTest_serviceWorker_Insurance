@@ -1,192 +1,163 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Service Worker Insurance API Demo</title>
-    <style>
-        body {
-            font-family: sans-serif;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh; /* Ensure footer can be at the bottom */
-            margin: 0; /* Remove default body margin */
-        }
-
-        h1, h2 {
-            text-align: center;
-        }
-
-        #buttons {
-            text-align: center;
-            margin-bottom: 1em;
-        }
-
-        button {
-            margin: 0.5em;
-            padding: 0.5em 1em;
-            cursor: pointer;
-            border: 1px solid #ccc;
-            background-color: white;
-            border-radius: 5px; /* Slightly rounded corners */
-            font-size: 1em;
-        }
-        button:hover {
-            background-color: #eee;
-        }
-
-                #flow-controls {
-            position: fixed;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 999;
-            display: flex;
-            gap: 1em;
-        }
-
-/* Botones flotantes Start y End */
-.flow-control {
-    margin: 0.5em;
-    padding: 0.5em 1em;
-    cursor: pointer;
-    border: none;
-    border-radius: 5px;
-    font-size: 1em;
-    font-weight: bold;
-    color: white;
-    width: 120px;
-}
-
-/* Estilo para botones circulares START y END */
-.circular-button {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    font-weight: bold;
-    color: white;
-    border: none;
-    margin: 10px auto;
-    display: block;
-    font-size: 0.8em;
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-}
-
-#startFlow {
-    background-color: #007BFF;
-}
-
-#endFlow {
-    background-color: #dc3545;
-}
-
-/* Botones deshabilitados */
-button[data-api-step]:disabled {
-    background-color: #e0e0e0 !important;
-    color: #999;
-    border: 1px solid #ccc;
-    cursor: not-allowed;
-}
-
-/* Botones completados */
-button.completed {
-    background-color: #c8f7c5 !important; /* Verde claro */
-    color: black;
-    border: 1px solid #88d18a;
-}
-
-button.complete-step {
-    background-color: #b2fab4 !important; /* Light green for completed steps */
-    border: 1px solid #4caf50;
-    color: #000;
-}
-/* Mobile layout: center buttons at bottom */
-@media (max-width: 600px) {
-    #flow-buttons {
-        left: 50%;
-        right: auto;
-        transform: translateX(-50%);
-        bottom: 30px;
-        flex-direction: row;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Service Worker Insurance API Demo</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      margin: 0;
     }
-}
 
+    h1, h2 {
+      text-align: center;
+    }
 
-        pre {
-            border: 1px solid #ccc;
-            padding: 1em;
-            background-color: #f9f9f9;
-            white-space: pre-wrap; /* Wrap long lines */
-            overflow-x: auto; /* Add horizontal scrollbar if needed */
-        }
+    #buttons {
+      text-align: center;
+      margin-bottom: 1em;
+    }
 
-        #status {
-            margin-left: 1em;
-            font-weight: bold;
-        }
+    button {
+      margin: 0.5em;
+      padding: 0.5em 1em;
+      cursor: pointer;
+      border: 1px solid #ccc;
+      background-color: white;
+      border-radius: 5px;
+      font-size: 1em;
+    }
 
-        #updateSW {
-            display: none; /* Initially hidden */
-            background-color: #4CAF50; /* Green */
-            color: white;
-            border: none;
-        }
+    button:hover {
+      background-color: #eee;
+    }
 
-        footer {
-            margin-top: auto; /* Push footer to the bottom */
-            background-color: #333;
-            color: white;
-            padding: 0.5em;
-            text-align: center;
-        }
+    /* Circular Start/End buttons */
+    .circular-button {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      font-weight: bold;
+      color: white;
+      border: none;
+      margin: 10px auto;
+      display: block;
+      font-size: 0.8em;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
 
-        .progress-indicator {
-            display: inline-block;
-            width: 15px;
-            height: 15px;
-            border-radius: 50%; /* Make it circular */
-            background-color: #ccc; /* Initial color (gray) */
-            margin: 0 5px;
-        }
+    #startFlow {
+      background-color: #007BFF;
+    }
 
-        .progress-indicator.complete {
-            background-color: #4CAF50; /* Green when complete */
-        }
-    </style>
+    #endFlow {
+      background-color: #dc3545;
+    }
+
+    /* Step buttons (initially disabled) */
+    button[data-api-step]:disabled {
+      background-color: #e0e0e0 !important;
+      color: #999;
+      border: 1px solid #ccc;
+      cursor: not-allowed;
+    }
+
+    /* Step completed (green) */
+    button.complete-step {
+      background-color: #b2fab4 !important;
+      border: 1px solid #4caf50;
+      color: #000;
+    }
+
+    /* Progress indicators */
+    .progress-indicator {
+      display: inline-block;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background-color: #ccc;
+      margin: 0 5px;
+    }
+
+    .progress-indicator.complete {
+      background-color: #4CAF50;
+    }
+
+    pre {
+      border: 1px solid #ccc;
+      padding: 1em;
+      background-color: #f9f9f9;
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+
+    #status {
+      margin-left: 1em;
+      font-weight: bold;
+    }
+
+    #updateSW {
+      display: none;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+    }
+
+    footer {
+      margin-top: auto;
+      background-color: #333;
+      color: white;
+      padding: 0.5em;
+      text-align: center;
+    }
+
+    @media (max-width: 600px) {
+      #buttons {
+        padding: 0 1em;
+      }
+    }
+  </style>
 </head>
 <body>
-    <h1>Service Worker Insurance API Demo</h1>
+  <h1>Service Worker Insurance API Demo</h1>
 
-    <div id="buttons">
-<!-- Coloca esto antes de los botones del flujo -->
-        <button id="startFlow" class="circular-button">Start</button>
-        <button data-api-step="0" data-api-url="api/data" data-method="POST">1. Create Customer</button><br>
-        <button data-api-step="1" data-api-url="products" data-method="GET">2. Get Products</button><br>
-        <button data-api-step="2" data-api-url="api/customers/:customerId:/quotes" data-method="POST">3. Start Quote</button><br>
-        <button data-api-step="3" data-api-url="api/customers/:customerId:/quotes/:quoteId:" data-method="PUT">4. Update Quote</button><br>
-        <button data-api-step="4" data-api-url="api/customers/:customerId:/quotes/:quoteId:/calculate" data-method="POST">5. Calculate Premium</button><br>
-        <button data-api-step="5" data-api-url="api/customers/:customerId:/quotes/:quoteId:/accept" data-method="POST">6. Accept Quote</button><br>
-        <button data-api-step="6" data-api-url="api/customers/:customerId:/policies/:policyId:" data-method="GET">7. Get Policy</button><br>
-        <button data-api-step="7" data-api-url="api/customers/:customerId:/claims" data-method="POST">8. File Claim</button><br>
-        <button data-api-step="8" data-api-url="api/customers/:customerId:/claims/:claimId:" data-method="GET">9. Get Claim</button><br>
-        <button data-api-step="9" data-api-url="api/customers/:customerId:/policies/:policyId:/renewal" data-method="GET">10. Get Renewal Info</button><br>
-        <button data-api-step="10" data-api-url="api/customers/:customerId:/policies/:policyId:/renew" data-method="POST">11. Renew Policy</button><br>
-        <button data-api-step="11" data-api-url="api/debug/policies" data-method="GET">🧪 Ver Policies</button><br>
-        <button data-api-step="12" data-api-url="api/debug/claims" data-method="GET">🧪 Ver Claims</button><br>
-        <button id="endFlow" class="circular-button">End</button><br>
-        
-    </div>
+  <div id="buttons">
+    <!-- Start Circle -->
+    <button id="startFlow" class="circular-button">Start</button>
 
-    <h2>Response:</h2>
-    <pre id="response"></pre>
+    <!-- Sequential Process Buttons -->
+    <button data-api-step="0" data-api-url="api/data" data-method="POST">1. Create Customer</button><br>
+    <button data-api-step="1" data-api-url="products" data-method="GET">2. Get Products</button><br>
+    <button data-api-step="2" data-api-url="api/customers/:customerId:/quotes" data-method="POST">3. Start Quote</button><br>
+    <button data-api-step="3" data-api-url="api/customers/:customerId:/quotes/:quoteId:" data-method="PUT">4. Update Quote</button><br>
+    <button data-api-step="4" data-api-url="api/customers/:customerId:/quotes/:quoteId:/calculate" data-method="POST">5. Calculate Premium</button><br>
+    <button data-api-step="5" data-api-url="api/customers/:customerId:/quotes/:quoteId:/accept" data-method="POST">6. Accept Quote</button><br>
+    <button data-api-step="6" data-api-url="api/customers/:customerId:/policies/:policyId:" data-method="GET">7. Get Policy</button><br>
+    <button data-api-step="7" data-api-url="api/customers/:customerId:/claims" data-method="POST">8. File Claim</button><br>
+    <button data-api-step="8" data-api-url="api/customers/:customerId:/claims/:claimId:" data-method="GET">9. Get Claim</button><br>
+    <button data-api-step="9" data-api-url="api/customers/:customerId:/policies/:policyId:/renewal" data-method="GET">10. Get Renewal Info</button><br>
+    <button data-api-step="10" data-api-url="api/customers/:customerId:/policies/:policyId:/renew" data-method="POST">11. Renew Policy</button><br>
+    <button data-api-step="11" data-api-url="api/debug/policies" data-method="GET">🧪 Ver Policies</button><br>
+    <button data-api-step="12" data-api-url="api/debug/claims" data-method="GET">🧪 Ver Claims</button><br>
 
-    <p>Status: <span id="status"></span></p>
+    <!-- End Circle -->
+    <button id="endFlow" class="circular-button">End</button>
+  </div>
 
-    <footer>
-        <div id="progress-indicators">
-           </div>
-    </footer>
+  <h2>Response:</h2>
+  <pre id="response"></pre>
 
-    <script src="/IntegrationTest_serviceWorker_Insurance/main.js"></script>
+  <p>Status: <span id="status"></span></p>
+
+  <footer>
+    <div id="progress-indicators"></div>
+  </footer>
+
+  <script src="/IntegrationTest_serviceWorker_Insurance/main.js"></script>
 </body>
 </html>
