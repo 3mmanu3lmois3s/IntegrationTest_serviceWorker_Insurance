@@ -97,9 +97,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetchData(basePath + apiUrl, method, bodyData);
 
             const visuallyTrackableSteps = [...Array(13).keys()];
-            const shouldMarkComplete = response?.success === true || response?.error === "Policy is not renewable yet";
 
-            if (visuallyTrackableSteps.includes(step) && shouldMarkComplete) {
+            // Success is assumed if fetchData did not throw
+            if (visuallyTrackableSteps.includes(step)) {
                 markStepComplete(step);
                 unlockButton(step + 1);
             }
