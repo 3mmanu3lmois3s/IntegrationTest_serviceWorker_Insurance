@@ -1,0 +1,114 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/data",
+    "description": "Crear un nuevo cliente",
+    "payloadExample": {
+      "name": "Test Customer",
+      "email": "test@example.com",
+      "address": "123 Main St"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/products",
+    "description": "Obtener lista de productos disponibles"
+  },
+  {
+    "method": "GET",
+    "path": "/api/customers",
+    "description": "Obtener todos los clientes"
+  },
+  {
+    "method": "GET",
+    "path": "/api/customers/:customerId",
+    "description": "Obtener detalles de un cliente espec\u00edfico"
+  },
+  {
+    "method": "POST",
+    "path": "/api/customers/:customerId/quotes",
+    "description": "Iniciar una nueva cotizaci\u00f3n",
+    "payloadExample": {
+      "productCode": "BASIC",
+      "coverage": "FULL",
+      "birthDate": "1985-01-01"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/customers/:customerId/quotes/:quoteId",
+    "description": "Actualizar datos de una cotizaci\u00f3n",
+    "payloadExample": {
+      "productCode": "PREMIUM",
+      "birthDate": "1990-05-15"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/customers/:customerId/quotes/:quoteId/calculate",
+    "description": "Calcular prima de una cotizaci\u00f3n"
+  },
+  {
+    "method": "POST",
+    "path": "/api/customers/:customerId/quotes/:quoteId/accept",
+    "description": "Aceptar una cotizaci\u00f3n y generar p\u00f3liza"
+  },
+  {
+    "method": "GET",
+    "path": "/api/customers/:customerId/policies/:policyId",
+    "description": "Consultar datos de una p\u00f3liza"
+  },
+  {
+    "method": "GET",
+    "path": "/api/customers/:customerId/policies/:policyId/renewal",
+    "description": "Consultar si una p\u00f3liza puede renovarse"
+  },
+  {
+    "method": "POST",
+    "path": "/api/customers/:customerId/policies/:policyId/renew",
+    "description": "Renovar una p\u00f3liza"
+  },
+  {
+    "method": "POST",
+    "path": "/api/customers/:customerId/claims",
+    "description": "Registrar un nuevo reclamo",
+    "payloadExample": {
+      "policyId": "policy123",
+      "description": "Accidente de auto en la calle X"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/customers/:customerId/claims/:claimId",
+    "description": "Consultar el estado de un reclamo"
+  },
+  {
+    "method": "GET",
+    "path": "/api/debug/policies",
+    "description": "Ver todas las p\u00f3lizas mockeadas"
+  },
+  {
+    "method": "GET",
+    "path": "/api/debug/claims",
+    "description": "Ver todos los reclamos mockeados"
+  },
+  {
+    "method": "GET",
+    "path": "/api/messages",
+    "description": "Obtener todos los mensajes de la base"
+  },
+  {
+    "method": "POST",
+    "path": "/api/messages",
+    "description": "Enviar un nuevo mensaje",
+    "payloadExample": {
+      "type": "system",
+      "text": "Esto es un mensaje de prueba"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/search?terms=",
+    "description": "Buscar datos entre clientes y mensajes por t\u00e9rmino"
+  }
+]
