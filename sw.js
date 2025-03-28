@@ -341,10 +341,7 @@ self.addEventListener('fetch', (event) => {
             return event.respondWith(handleGetProducts());
         }
 
-        // --- API Routes ---
-        if (relativePath.startsWith('api/')) {
-            const apiPath = relativePath.substring(4); // Remove 'api/'
-        
+
             // ---- Agregado esto para gestión de mocks 
         if (relativePath === '__mocks' && method === 'GET') {
           return event.respondWith(new Response(JSON.stringify(mockRoutes), {
@@ -352,7 +349,12 @@ self.addEventListener('fetch', (event) => {
           }));
         }
             // ----
-            
+        
+        // --- API Routes ---
+        if (relativePath.startsWith('api/')) {
+            const apiPath = relativePath.substring(4); // Remove 'api/'
+        
+           
 
             // Create Customer (POST)
             if (apiPath === 'data' && method === 'POST') {
