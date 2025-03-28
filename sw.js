@@ -6,6 +6,30 @@ let memoryStore = {
     policies: {},
     claims: {}
   };
+
+
+// ---- Agregado esto para gestión de mocks 
+const mockRoutes = [
+  { method: "POST", path: "/api/data" },
+  { method: "GET", path: "/products" },
+  { method: "GET", path: "/api/customers" },
+  { method: "GET", path: "/api/customers/:customerId" },
+  { method: "POST", path: "/api/customers/:customerId/quotes" },
+  { method: "PUT", path: "/api/customers/:customerId/quotes/:quoteId" },
+  { method: "POST", path: "/api/customers/:customerId/quotes/:quoteId/calculate" },
+  { method: "POST", path: "/api/customers/:customerId/quotes/:quoteId/accept" },
+  { method: "GET", path: "/api/customers/:customerId/policies/:policyId" },
+  { method: "GET", path: "/api/customers/:customerId/policies/:policyId/renewal" },
+  { method: "POST", path: "/api/customers/:customerId/policies/:policyId/renew" },
+  { method: "POST", path: "/api/customers/:customerId/claims" },
+  { method: "GET", path: "/api/customers/:customerId/claims/:claimId" },
+  { method: "GET", path: "/api/debug/policies" },
+  { method: "GET", path: "/api/debug/claims" },
+  { method: "GET", path: "/api/messages" },
+  { method: "POST", path: "/api/messages" },
+  { method: "GET", path: "/api/search?terms=" }
+];
+// ----
   
   let nextQuoteId = 1;
   let nextPolicyId = 1;
@@ -320,6 +344,15 @@ self.addEventListener('fetch', (event) => {
         // --- API Routes ---
         if (relativePath.startsWith('api/')) {
             const apiPath = relativePath.substring(4); // Remove 'api/'
+        
+            // ---- Agregado esto para gestión de mocks 
+        if (relativePath === '__mocks' && method === 'GET') {
+          return event.respondWith(new Response(JSON.stringify(mockRoutes), {
+            headers: { 'Content-Type': 'application/json' }
+          }));
+        }
+            // ----
+            
 
             // Create Customer (POST)
             if (apiPath === 'data' && method === 'POST') {
