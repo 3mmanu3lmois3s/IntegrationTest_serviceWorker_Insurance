@@ -1,163 +1,166 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Service Worker Insurance API Demo</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-      margin: 0;
-    }
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Service Worker Insurance API Demo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <style>
+        /* --- (Tu CSS existente aquí - NO se necesita cambiar el CSS para esto) --- */
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            margin: 0;
+            padding-top: 20px; /* Añadir padding */
+            padding-bottom: 20px;
+        }
+        h1, h2 { text-align: center; }
+        #buttons { text-align: center; margin-bottom: 1em; }
+        button {
+            margin: 0.5em;
+            padding: 0.5em 1em;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background-color: white;
+            border-radius: 5px;
+            font-size: 1em;
+            min-width: 180px; /* Añadir ancho mínimo a los botones */
+        }
+        button:hover { background-color: #eee; }
+        .circular-button { /* Estilos para Start/End */
+            width: 60px; height: 60px; border-radius: 50%; font-weight: bold;
+            color: white; border: none; margin: 15px auto; display: block;
+            font-size: 0.9em; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        #startFlow { background-color: #0d6efd; } /* Azul Bootstrap */
+        #endFlow { background-color: #dc3545; } /* Rojo Bootstrap */
+        button[data-api-step]:disabled { /* Estilo para botones deshabilitados */
+            background-color: #e9ecef !important; color: #6c757d; border-color: #dee2e6;
+            cursor: not-allowed; opacity: 0.65;
+        }
+        button.complete-step { /* Estilo para pasos completados */
+            background-color: #d1e7dd !important; border-color: #a3cfbb; color: #0a3622;
+        }
+        .progress-indicator { /* Estilo para indicadores de progreso */
+            display: inline-block; width: 18px; height: 18px; border-radius: 50%;
+            background-color: #adb5bd; /* Gris Bootstrap */ margin: 0 5px;
+            border: 1px solid #6c757d;
+        }
+        .progress-indicator.complete { background-color: #198754; border-color: #146c43;} /* Verde Bootstrap */
+        pre { /* Estilo para la respuesta */
+            border: 1px solid #dee2e6; padding: 1em; background-color: #f8f9fa;
+            white-space: pre-wrap; overflow-x: auto;
+        }
+        #status { margin-left: 1em; font-weight: bold; }
+        #updateSW { /* Botón de actualizar SW */
+             display: none; background-color: #198754; color: white; border: none;
+        }
+        footer { /* Estilo del footer */
+            margin-top: auto; background-color: #f8f9fa; border-top: 1px solid #dee2e6;
+            color: #6c757d; padding: 1em; text-align: center;
+        }
+        @media (max-width: 600px) { #buttons { padding: 0 1em; } }
 
-    h1, h2 {
-      text-align: center;
-    }
+        /* --- Estilos específicos para Tooltips (opcional, Bootstrap se encarga bien) --- */
+        .tooltip-inner {
+            background-color: #343a40; /* Fondo oscuro */
+            color: white;
+            border-radius: .375rem; /* Bordes redondeados Bootstrap */
+            padding: .5rem 1rem;
+            max-width: 300px; /* Limitar ancho */
+            text-align: left;
+        }
+        .tooltip.bs-tooltip-end .tooltip-arrow::before {
+             border-right-color: #343a40; /* Flecha oscura */
+        }
+        .tooltip.bs-tooltip-start .tooltip-arrow::before {
+             border-left-color: #343a40;
+        }
+        .tooltip.bs-tooltip-top .tooltip-arrow::before {
+             border-top-color: #343a40;
+        }
+         .tooltip.bs-tooltip-bottom .tooltip-arrow::before {
+             border-bottom-color: #343a40;
+        }
 
-    #buttons {
-      text-align: center;
-      margin-bottom: 1em;
-    }
-
-    button {
-      margin: 0.5em;
-      padding: 0.5em 1em;
-      cursor: pointer;
-      border: 1px solid #ccc;
-      background-color: white;
-      border-radius: 5px;
-      font-size: 1em;
-    }
-
-    button:hover {
-      background-color: #eee;
-    }
-
-    /* Circular Start/End buttons */
-    .circular-button {
-      width: 50px;
-      height: 50px;
-      border-radius: 50%;
-      font-weight: bold;
-      color: white;
-      border: none;
-      margin: 10px auto;
-      display: block;
-      font-size: 0.8em;
-      cursor: pointer;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    }
-
-    #startFlow {
-      background-color: #007BFF;
-    }
-
-    #endFlow {
-      background-color: #dc3545;
-    }
-
-    /* Step buttons (initially disabled) */
-    button[data-api-step]:disabled {
-      background-color: #e0e0e0 !important;
-      color: #999;
-      border: 1px solid #ccc;
-      cursor: not-allowed;
-    }
-
-    /* Step completed (green) */
-    button.complete-step {
-      background-color: #b2fab4 !important;
-      border: 1px solid #4caf50;
-      color: #000;
-    }
-
-    /* Progress indicators */
-    .progress-indicator {
-      display: inline-block;
-      width: 15px;
-      height: 15px;
-      border-radius: 50%;
-      background-color: #ccc;
-      margin: 0 5px;
-    }
-
-    .progress-indicator.complete {
-      background-color: #4CAF50;
-    }
-
-    pre {
-      border: 1px solid #ccc;
-      padding: 1em;
-      background-color: #f9f9f9;
-      white-space: pre-wrap;
-      overflow-x: auto;
-    }
-
-    #status {
-      margin-left: 1em;
-      font-weight: bold;
-    }
-
-    #updateSW {
-      display: none;
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-    }
-
-    footer {
-      margin-top: auto;
-      background-color: #333;
-      color: white;
-      padding: 0.5em;
-      text-align: center;
-    }
-
-    @media (max-width: 600px) {
-      #buttons {
-        padding: 0 1em;
-      }
-    }
-  </style>
+    </style>
 </head>
 <body>
-  <h1>Service Worker Insurance API Demo</h1>
+    <div class="container">
+        <h1 class="mb-4">Service Worker Insurance API Demo</h1>
 
-  <div id="buttons">
-    <!-- Start Circle -->
-    <button id="startFlow" class="circular-button">Start</button>
+        <div id="buttons" class="mb-4">
+            <button id="startFlow" class="circular-button">Start</button>
 
-    <!-- Sequential Process Buttons -->
-    <button data-api-step="0" data-api-url="api/data" data-method="POST">1. Create Customer</button><br>
-    <button data-api-step="1" data-api-url="products" data-method="GET">2. Get Products</button><br>
-    <button data-api-step="2" data-api-url="api/customers/:customerId:/quotes" data-method="POST">3. Start Quote</button><br>
-    <button data-api-step="3" data-api-url="api/customers/:customerId:/quotes/:quoteId:" data-method="PUT">4. Update Quote</button><br>
-    <button data-api-step="4" data-api-url="api/customers/:customerId:/quotes/:quoteId:/calculate" data-method="POST">5. Calculate Premium</button><br>
-    <button data-api-step="5" data-api-url="api/customers/:customerId:/quotes/:quoteId:/accept" data-method="POST">6. Accept Quote</button><br>
-    <button data-api-step="6" data-api-url="api/customers/:customerId:/policies/:policyId:" data-method="GET">7. Get Policy</button><br>
-    <button data-api-step="7" data-api-url="api/customers/:customerId:/claims" data-method="POST">8. File Claim</button><br>
-    <button data-api-step="8" data-api-url="api/customers/:customerId:/claims/:claimId:" data-method="GET">9. Get Claim</button><br>
-    <button data-api-step="9" data-api-url="api/customers/:customerId:/policies/:policyId:/renewal" data-method="GET">10. Get Renewal Info</button><br>
-    <button data-api-step="10" data-api-url="api/customers/:customerId:/policies/:policyId:/renew" data-method="POST">11. Renew Policy</button><br>
-    <button data-api-step="11" data-api-url="api/debug/policies" data-method="GET">🧪 Ver Policies</button><br>
-    <button data-api-step="12" data-api-url="api/debug/claims" data-method="GET">🧪 Ver Claims</button><br>
+            <button class="btn btn-outline-secondary mb-2" data-api-step="0" data-api-url="api/data" data-method="POST"
+                    data-bs-toggle="tooltip" data-bs-placement="right" title="Registra un nuevo cliente potencial en el sistema. Se genera un ID único para seguir su proceso.">
+                1. Create Customer
+            </button><br>
+            <button class="btn btn-outline-secondary mb-2" data-api-step="1" data-api-url="products" data-method="GET"
+                    data-bs-toggle="tooltip" data-bs-placement="right" title="Consulta los tipos de pólizas de seguro disponibles (Hogar, Auto, Vida, etc.).">
+                2. Get Products
+            </button><br>
+            <button class="btn btn-outline-secondary mb-2" data-api-step="2" data-api-url="api/customers/:customerId:/quotes" data-method="POST"
+                    data-bs-toggle="tooltip" data-bs-placement="right" title="Inicia el proceso de cotización para un cliente específico y un producto seleccionado. Genera un ID de cotización.">
+                3. Start Quote
+            </button><br>
+            <button class="btn btn-outline-secondary mb-2" data-api-step="3" data-api-url="api/customers/:customerId:/quotes/:quoteId:" data-method="PUT"
+                    data-bs-toggle="tooltip" data-bs-placement="right" title="Actualiza la cotización con detalles específicos del riesgo (datos del auto, casa, etc.).">
+                4. Update Quote
+            </button><br>
+            <button class="btn btn-outline-secondary mb-2" data-api-step="4" data-api-url="api/customers/:customerId:/quotes/:quoteId:/calculate" data-method="POST"
+                    data-bs-toggle="tooltip" data-bs-placement="right" title="Calcula el costo (prima) del seguro basado en los datos de la cotización y la evaluación de riesgo.">
+                5. Calculate Premium
+            </button><br>
+            <button class="btn btn-outline-secondary mb-2" data-api-step="5" data-api-url="api/customers/:customerId:/quotes/:quoteId:/accept" data-method="POST"
+                    data-bs-toggle="tooltip" data-bs-placement="right" title="El cliente acepta la cotización calculada. Se genera una póliza formal con un ID único.">
+                6. Accept Quote
+            </button><br>
+            <button class="btn btn-outline-secondary mb-2" data-api-step="6" data-api-url="api/customers/:customerId:/policies/:policyId:" data-method="GET"
+                    data-bs-toggle="tooltip" data-bs-placement="right" title="Consulta los detalles de una póliza activa específica (coberturas, fechas, etc.).">
+                7. Get Policy
+            </button><br>
+            <button class="btn btn-outline-secondary mb-2" data-api-step="7" data-api-url="api/customers/:customerId:/claims" data-method="POST"
+                    data-bs-toggle="tooltip" data-bs-placement="right" title="Registra un nuevo reclamo (siniestro) asociado a una póliza existente. Genera un ID de reclamo.">
+                8. File Claim
+            </button><br>
+            <button class="btn btn-outline-secondary mb-2" data-api-step="8" data-api-url="api/customers/:customerId:/claims/:claimId:" data-method="GET"
+                    data-bs-toggle="tooltip" data-bs-placement="right" title="Consulta el estado y los detalles de un reclamo específico.">
+                9. Get Claim
+            </button><br>
+            <button class="btn btn-outline-secondary mb-2" data-api-step="9" data-api-url="api/customers/:customerId:/policies/:policyId:/renewal" data-method="GET"
+                    data-bs-toggle="tooltip" data-bs-placement="right" title="Verifica si una póliza está próxima a vencer y si es elegible para renovación. Muestra detalles si aplica.">
+                10. Get Renewal Info
+            </button><br>
+            <button class="btn btn-outline-secondary mb-2" data-api-step="10" data-api-url="api/customers/:customerId:/policies/:policyId:/renew" data-method="POST"
+                    data-bs-toggle="tooltip" data-bs-placement="right" title="Confirma la renovación de una póliza elegible, extendiendo su cobertura.">
+                11. Renew Policy
+            </button><br>
+             <button class="btn btn-outline-info mb-2" data-api-step="11" data-api-url="api/debug/policies" data-method="GET"
+                    data-bs-toggle="tooltip" data-bs-placement="right" title="DEBUG: Muestra todas las pólizas almacenadas actualmente.">
+                🧪 Ver Policies
+            </button><br>
+            <button class="btn btn-outline-info mb-2" data-api-step="12" data-api-url="api/debug/claims" data-method="GET"
+                     data-bs-toggle="tooltip" data-bs-placement="right" title="DEBUG: Muestra todos los reclamos almacenados actualmente.">
+                🧪 Ver Claims
+            </button><br>
 
-    <!-- End Circle -->
-    <button id="endFlow" class="circular-button">End</button>
-  </div>
+            <button id="endFlow" class="circular-button">End</button>
+             <button id="updateSW" class="btn btn-success mt-3">Update Service Worker</button>
+        </div>
 
-  <h2>Response:</h2>
-  <pre id="response"></pre>
+        <h2>Response:</h2>
+        <pre id="response"></pre>
 
-  <p>Status: <span id="status"></span></p>
+        <p>Status: <span id="status"></span></p>
 
-  <footer>
-    <div id="progress-indicators"></div>
-  </footer>
-
-  <script src="/IntegrationTest_serviceWorker_Insurance/main.js"></script>
+        <footer>
+            <div id="progress-indicators"></div>
+        </footer>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    <script src="/IntegrationTest_serviceWorker_Insurance/main.js"></script>
 </body>
 </html>
