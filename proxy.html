@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Proxy para RichAPITester</title>
+</head>
+<body>
+  <script>
+    window.addEventListener("message", async (event) => {
+      if (event.data && event.data.type === "fetchRequest") {
+        const { fullURL, options } = event.data;
+        try {
+          const res = await fetch(fullURL, options);
+          const text = await res.text();
+          event.source.postMessage({ type: "fetchResponse", text }, event.origin);
+        } catch (err) {
+          event.source.postMessage({ type: "fetchResponse", error: err.message }, event.origin);
+        }
+      }
+    });
+  </script>
+</body>
+</html>
