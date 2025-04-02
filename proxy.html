@@ -1,0 +1,28 @@
+<!-- proxy.html -->
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Proxy para RichAPITester</title>
+  </head>
+  <body>
+    <script>
+      window.addEventListener("message", async (event) => {
+        console.log("Proxy recibido mensaje:", event.data);
+        if (event.data && event.data.type === "fetchRequest") {
+          const { fullURL, options } = event.data;
+          try {
+            const res = await fetch(fullURL, options);
+            const text = await res.text();
+            console.log("Proxy enviando respuesta:", text);
+            event.source.postMessage({ type: "fetchResponse", text }, event.origin);
+          } catch (err) {
+            console.error("Proxy error:", err.message);
+            event.source.postMessage({ type: "fetchResponse", error: err.message }, event.origin);
+          }
+        }
+      });
+      console.log("Proxy cargado y listo");
+    </script>
+  </body>
+</html>
